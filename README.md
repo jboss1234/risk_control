@@ -139,3 +139,5 @@
 <img width="3024" height="1714" alt="risk_list" src="https://github.com/user-attachments/assets/5859b6e6-307e-4fdf-8a01-41187e143852" />
 <img width="2974" height="1566" alt="record" src="https://github.com/user-attachments/assets/22362227-efa8-4caa-ae27-095c72cab73a" />
 <img width="2970" height="1480" alt="dashboard" src="https://github.com/user-attachments/assets/0938ba3d-0655-46f4-85b2-edd36137b88a" />
+
+项目中包含了静态代码，有需要沟通探讨可以微信联系：a13386248033
