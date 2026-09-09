@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>系统运维 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.tag-green{color:#0f8a3d;background:#e7f8ee}.tag-gray2{color:#5b7470;background:#eef2f1}.tag-orange{color:#c2580a;background:#fdf1e3}.tag-red{color:#d03050;background:#fdeaea}.log-box{background:#0f2a26;color:#cde9e3;border-radius:8px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.9;white-space:pre-wrap;max-height:340px;overflow:auto}.log-box .warn{color:#fbbf24}.log-box .err{color:#fb7185}.log-box .ok{color:#34d399}</style>
+</head>
+<body data-page="sys-ops">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi"><div class="kpi-lab">集群节点</div><div class="kpi-val">8<small>台 / 全部在线</small></div></div>
+        <div class="kpi"><div class="kpi-lab">运行中组件</div><div class="kpi-val" id="kpi-run">0</div></div>
+        <div class="kpi"><div class="kpi-lab">异常 / 已停止</div><div class="kpi-val" id="kpi-bad">0</div></div>
+        <div class="kpi"><div class="kpi-lab">今日自动重启</div><div class="kpi-val">3<small>次</small></div></div>
+      </div>
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索 组件 / 机器" style="width:220px">
+          <select id="f-st" style="width:130px">
+            <option value="">全部状态</option><option>运行中</option><option>已停止</option><option>异常</option>
+          </select>
+          <button class="btn btn-primary" id="q-btn">查询</button>
+          <span style="margin-left:auto"><button class="btn" id="ref-btn">↻ 刷新状态</button></span>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1250px">
+            <thead><tr>
+              <th style="width:190px">组件名称</th><th style="width:120px">类型</th><th style="width:120px">所在机器</th>
+              <th style="width:90px">PID</th><th style="width:90px">状态</th><th style="width:170px">启动时间</th>
+              <th style="width:80px">CPU</th><th style="width:90px">内存</th><th style="width:110px">最近心跳</th><th style="width:180px">操作</th>
+            </tr></thead>
+            <tbody id="so-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="so-total">共 0 条</span><span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="log-modal">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-head"><h3 id="log-title">运行日志</h3><button class="btn" data-close="log-modal">×</button></div>
+    <div class="modal-body"><div class="log-box" id="log-body"></div></div>
+    <div class="modal-foot"><button class="btn" data-close="log-modal">关闭</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { name:'flink-node-pay', type:'Flink 计算组', host:'10.0.8.11', pid:'28412', st:'运行中', start:'2026-09-03 09:00:12', cpu:'23%', mem:'1.8/4G', heart:'2s 前', boot:'2026-09-03 09:00:12' },
+    { name:'flink-node-login', type:'Flink 计算组', host:'10.0.8.12', pid:'29003', st:'运行中', start:'2026-09-03 09:02:30', cpu:'18%', mem:'1.2/4G', heart:'3s 前', boot:'2026-09-03 09:02:30' },
+    { name:'flink-node-credit', type:'Flink 计算组', host:'10.0.8.13', pid:'29511', st:'运行中', start:'2026-09-03 09:05:44', cpu:'31%', mem:'2.1/4G', heart:'2s 前', boot:'2026-09-03 09:05:44' },
+    { name:'cdc-sync-pay', type:'同步任务', host:'10.0.8.21', pid:'30120', st:'运行中', start:'2026-09-03 09:10:08', cpu:'9%', mem:'0.6/2G', heart:'4s 前', boot:'2026-09-03 09:10:08' },
+    { name:'cdc-sync-black', type:'同步任务', host:'10.0.8.21', pid:'30124', st:'异常', start:'2026-09-03 09:11:52', cpu:'-', mem:'-', heart:'18m 前', boot:'2026-09-03 09:11:52' },
+    { name:'daily-risk-report', type:'定时脚本', host:'10.0.8.31', pid:'31087', st:'运行中', start:'2026-09-03 01:00:00', cpu:'4%', mem:'0.3/2G', heart:'2s 前', boot:'2026-09-03 01:00:00' },
+    { name:'black-weekly-import', type:'定时脚本', host:'10.0.8.32', pid:'-', st:'已停止', start:'-', cpu:'-', mem:'-', heart:'-', boot:'2026-09-02 02:00:00' },
+    { name:'observe-replay-task', type:'旁路任务', host:'10.0.8.41', pid:'31877', st:'运行中', start:'2026-09-03 10:20:33', cpu:'6%', mem:'0.5/2G', heart:'5s 前', boot:'2026-09-03 10:20:33' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function stTag(st) { const m = { '运行中':'tag-green', '已停止':'tag-gray2', '异常':'tag-red' }; return `<span class="tag ${m[st]||'tag-gray2'}">${st}</span>`; }
+  function acts(c) {
+    if (c.st === '运行中') return `<button class="btn-link" data-tg="${c.i}">停止</button><button class="btn-link" data-rst="${c.i}">重启</button><button class="btn-link" data-log="${c.i}">日志</button>`;
+    if (c.st === '异常')   return `<button class="btn-link" data-rst="${c.i}">重启</button><button class="btn-link" data-log="${c.i}">日志</button>`;
+    return `<button class="btn-link" data-tg="${c.i}">启动</button><button class="btn-link" data-log="${c.i}">日志</button>`;
+  }
+  function rowHtml(c) { return `<tr><td style="font-weight:600;color:#17423c">${esc(c.name)}</td><td style="color:#5b7470">${esc(c.type)}</td><td class="mono">${esc(c.host)}</td><td class="mono num">${esc(c.pid)}</td><td>${stTag(c.st)}</td><td class="num">${esc(c.start)}</td><td class="num">${esc(c.cpu)}</td><td class="num">${esc(c.mem)}</td><td class="num">${esc(c.heart)}</td><td class="td-actions">${acts(c)}</td></tr>`; }
+  function fullRender(){
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    const st = document.getElementById('f-st').value;
+    const list = D.map((x,i)=>({...x,i})).filter(x => (!kw || x.name.toLowerCase().includes(kw) || x.host.includes(kw)) && (!st || x.st === st));
+    document.getElementById('so-body').innerHTML = list.map(rowHtml).join('');
+    document.getElementById('so-total').textContent = '共 ' + D.length + ' 条，当前展示 ' + list.length + ' 条';
+    document.getElementById('kpi-run').textContent = D.filter(x => x.st === '运行中').length;
+    document.getElementById('kpi-bad').textContent = D.filter(x => x.st !== '运行中').length;
+  }
+  function logText(c) {
+    const t = c.boot === '-' ? '2026-09-02 02:00:00' : c.boot;
+    const L = [
+      'INFO  Starting ' + c.name + ' on ' + c.host + ' (pid ' + (c.pid === '-' ? 'n/a' : c.pid) + ')',
+      'INFO  register monitor: heart_beat_interval=5s',
+      'INFO  load config: app.conf (checksum ok)',
+    ];
+    if (c.st === '异常') { L.push('WARN  binlog offset sync timeout, retrying...','WARN  retry 1/3 failed: connect timeout','ERROR last heartbeat 18 minutes ago, task considered unhealthy'); }
+    else { L.push('INFO  checkpoint completed, latency=' + (c.st === '运行中' ? '120ms' : '-'), 'OK    service is healthy, in sync'); }
+    return L.map((x, i) => { const d = new Date(t.replace(/-/g, '/') + ' +0800').getTime() + i * 4000; const f = new Date(d).toLocaleString('zh-CN', { hour12:false }); const cls = x.startsWith('ERROR') ? 'err' : x.startsWith('WARN') ? 'warn' : x.startsWith('OK') ? 'ok' : ''; return '<span class="muted">' + f + '</span>  <span class="' + cls + '">' + x + '</span>'; }).join('\n');
+  }
+  document.getElementById('f-kw').addEventListener('input', fullRender);
+  document.getElementById('f-st').addEventListener('change', fullRender);
+  document.getElementById('q-btn').onclick = fullRender;
+  document.getElementById('ref-btn').onclick = () => { D.forEach(x => { if (x.st === '运行中') x.heart = '刚刚'; }); fullRender(); alert('状态已刷新（演示）'); };
+  document.addEventListener('click', e => {
+    const tg = e.target.closest('[data-tg]');
+    if (tg) { const c = D[+tg.dataset.tg]; c.st = c.st === '运行中' ? '已停止' : '运行中'; if (c.st === '运行中') { c.cpu = '5%'; c.mem = '0.4/2G'; c.heart = '刚刚'; } else { c.pid = '-'; c.heart = '-'; } fullRender(); return; }
+    const rst = e.target.closest('[data-rst]');
+    if (rst) { const c = D[+rst.dataset.rst]; c.st = '运行中'; c.pid = String(10000 + Math.floor(Math.random() * 40000)); c.cpu = '5%'; c.mem = '0.4/2G'; c.start = '2026-09-03 17:0' + Math.floor(Math.random() * 10) + ':0' + Math.floor(Math.random() * 9); c.heart = '刚刚'; fullRender(); alert('组件「' + c.name + '」已重启（演示）'); return; }
+    const lg = e.target.closest('[data-log]');
+    if (lg) { const c = D[+lg.dataset.log]; document.getElementById('log-title').textContent = '运行日志 · ' + c.name; document.getElementById('log-body').innerHTML = logText(c); openModal('log-modal'); } });
+  fullRender();
+})();
+</script>
+</body>
+</html>

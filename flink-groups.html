@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Flink 计算组 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .mono2 { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .gstat { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px; }
+  .gstat .card { background:#fff;border:1px solid #e2ecea;border-radius:12px;padding:12px 16px;box-shadow:0 1px 2px rgba(15,94,89,.04); }
+  .gstat .n { font-size:24px;font-weight:700;color:#0f766e; }
+  .gstat .l { font-size:12px;color:#6a8580; }
+</style>
+</head>
+<body data-page="flink-groups">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="gstat">
+        <div class="card"><div class="n" id="s-all">0</div><div class="l">计算组总数</div></div>
+        <div class="card"><div class="n" style="color:#0f8a3d" id="s-run">0</div><div class="l">运行中</div></div>
+        <div class="card"><div class="n" id="s-task">0</div><div class="l">累计任务数</div></div>
+        <div class="card"><div class="n" style="color:#d03050" id="s-tbl">0</div><div class="l">绑定指标表</div></div>
+      </div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索计算组名称" style="width:260px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" data-open="gp-modal">＋ 新建计算组</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1180px">
+            <thead><tr>
+              <th style="width:190px">计算组名称</th><th style="width:130px">类型</th><th style="width:90px">状态</th>
+              <th style="width:90px">并行度</th><th style="width:120px">每并行内存</th><th style="width:110px">指标表数</th>
+              <th style="width:170px">所属节点</th><th>描述</th><th style="width:180px">最近状态时间</th><th style="width:180px">操作</th>
+            </tr></thead>
+            <tbody id="gp-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="gp-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新建/编辑弹窗 -->
+<div class="modal-mask" id="gp-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head"><h3 id="gpm-title">新建计算组</h3><button class="btn" data-close="gp-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">计算组名称 <b style="color:#d03050">*</b></div>
+          <input id="m-name" placeholder="如 TRANSACTION_PHONE 窗口聚合"></div>
+        <div><div class="lab" style="color:#263a35">类型</div>
+          <select id="m-type"><option>窗口聚合组</option><option>精确去重组</option><option>关联补全组</option><option>实时宽表组</option></select></div>
+        <div><div class="lab" style="color:#263a35">并行度</div>
+          <input id="m-par" type="number" value="4" min="1" max="64"></div>
+        <div><div class="lab" style="color:#263a35">每并行内存（GB）</div>
+          <input id="m-mem" type="number" value="4" min="1" max="64"></div>
+        <div><div class="lab" style="color:#263a35">所属节点</div>
+          <select id="m-node"><option value="">全部节点</option></select></div>
+        <div><div class="lab" style="color:#263a35">描述</div>
+          <input id="m-desc"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="gp-modal">取消</button><button class="btn btn-primary" id="gpm-save">保存</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ Flink 计算组 · 静态演示数据 ============ */
+(function () {
+  const D = [
+    { name:'TRANSACTION_1H_WINDOW', type:'窗口聚合组', st:'运行中', par:8, mem:8, tbls:12, node:'TRANSACTION_PHONE_SDK', desc:'交易侧 1h/24h 用户维度窗口指标', time:'2026-09-03 15:40:12' },
+    { name:'LOGIN_DISTINCT_IP', type:'精确去重组', st:'运行中', par:4, mem:4, tbls:6, node:'LOGIN_WEB', desc:'登录 IP/设备去重计数', time:'2026-09-03 15:12:50' },
+    { name:'PAY_5S_ROLLUP', type:'实时宽表组', st:'运行中', par:16, mem:8, tbls:20, node:'PAY_ANDROID_SDK', desc:'支付 5 秒滚动宽表', time:'2026-09-03 14:58:03' },
+    { name:'API_QPS_COUNTER', type:'窗口聚合组', st:'已停止', par:2, mem:2, tbls:3, node:'LOGIN_API', desc:'开放接口频控计数', time:'2026-09-02 18:22:09' },
+    { name:'ASSET_JOIN_GROUP', type:'关联补全组', st:'运行中', par:4, mem:6, tbls:8, node:'TRANSACTION_PHONE_SDK', desc:'名单/属性维表关联', time:'2026-09-03 10:06:41' },
+  ];
+  const nodeM = document.getElementById('m-node');
+  DEMO.nodes.forEach(n => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; nodeM.appendChild(o); });
+  const ND = (n) => n ? ((DEMO.nodes.find(x => x.nodeNo === n) || {}).nodeName || n) : '全部节点';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+  function rowHtml(g, i) {
+    const run = g.st === '运行中';
+    return `<tr data-i="${i}">
+      <td><span class="mono2" style="font-weight:600;color:#17423c">${esc(g.name)}</span></td>
+      <td>${esc(g.type)}</td>
+      <td><span class="tag ${run ? 'tag-green' : 'tag-gray2'}">${g.st}</span></td>
+      <td>${g.par}</td>
+      <td>${g.mem} GB</td>
+      <td>${g.tbls}</td>
+      <td>${ND(g.node)}</td>
+      <td style="color:#41605b">${esc(g.desc)}</td>
+      <td>${esc(g.time)}</td>
+      <td class="td-actions">
+        <button class="btn-link" data-run="${i}">${run ? '停止' : '启动'}</button>
+        <button class="btn-link" data-e="${i}">编辑</button>
+        <button class="btn-link danger" data-d="${i}">删除</button>
+      </td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('gp-body').innerHTML = list.map(g => rowHtml(g, D.indexOf(g))).join('');
+    document.getElementById('gp-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function stats() {
+    document.getElementById('s-all').textContent = D.length;
+    document.getElementById('s-run').textContent = D.filter(g => g.st === '运行中').length;
+    document.getElementById('s-task').textContent = D.reduce((s, g) => s + (g.st === '运行中' ? g.tbls * 2 : 1), 0);
+    document.getElementById('s-tbl').textContent = D.reduce((s, g) => s + g.tbls, 0);
+  }
+  function fullRender() { render(D); stats(); }
+  document.getElementById('f-kw').addEventListener('input', function () {
+    const kw = this.value.trim().toLowerCase();
+    render(D.filter(g => !kw || g.name.toLowerCase().includes(kw) || g.desc.includes(kw)));
+  });
+  document.getElementById('q-btn').onclick = () => document.getElementById('f-kw').dispatchEvent(new Event('input'));
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('gpm-title').textContent = idx === -1 ? '新建计算组' : '编辑计算组';
+    const g = idx === -1 ? {} : D[idx];
+    document.getElementById('m-name').value = g.name || '';
+    document.getElementById('m-type').value = g.type || '窗口聚合组';
+    document.getElementById('m-par').value = g.par || 4;
+    document.getElementById('m-mem').value = g.mem || 4;
+    document.getElementById('m-node').value = g.node || '';
+    document.getElementById('m-desc').value = g.desc || '';
+    openModal('gp-modal');
+  }
+  document.querySelector('[data-open="gp-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('gpm-save').onclick = () => {
+    const name = document.getElementById('m-name').value.trim();
+    if (!name) { alert('计算组名称不能为空'); return; }
+    const v = { name, type: document.getElementById('m-type').value, st: '运行中',
+      par: +document.getElementById('m-par').value || 1, mem: +document.getElementById('m-mem').value || 1,
+      tbls: 0, node: document.getElementById('m-node').value, desc: document.getElementById('m-desc').value.trim(),
+      time: '2026-09-03 16:00:00' };
+    if (_edit === -1) D.unshift(v); else D[_edit] = v;
+    closeModal('gp-modal'); fullRender();
+  };
+
+  document.addEventListener('click', e => {
+    const run = e.target.closest('[data-run]');
+    if (run) { const g = D[+run.dataset.run]; g.st = g.st === '运行中' ? '已停止' : '运行中'; fullRender(); return; }
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) { const g = D[+del.dataset.d]; if (confirm(`确认删除计算组「${g.name}」？`)) { D.splice(+del.dataset.d, 1); fullRender(); } }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

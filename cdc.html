@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>同步管理 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.tag-green{color:#0f8a3d;background:#e7f8ee}.tag-gray2{color:#5b7470;background:#eef2f1}.code-mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#0f766e}.tag-red{color:#d03050;background:#fdeaea}</style>
+</head>
+<body data-page="cdc">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索同步任务" style="width:240px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto"><button class="btn btn-primary" data-open="cdc-modal">＋ 新建同步任务</button></span>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1200px">
+            <thead><tr><th style="width:180px">任务名称</th><th style="width:210px">来源</th><th style="width:180px">目标宽表</th><th style="width:90px">状态</th><th style="width:100px">延迟</th><th style="width:180px">Binlog 位点时间</th><th style="width:140px">操作</th></tr></thead>
+            <tbody id="cdc-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="cdc-total">共 0 条</span><span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="cdc-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3>新建同步任务</h3><button class="btn" data-close="cdc-modal">×</button></div>
+    <div class="modal-body">
+      <div class="lab" style="color:#263a35">任务名称 <b style="color:#d03050">*</b></div><input id="m-name">
+      <div class="lab" style="color:#263a35;margin-top:10px">来源库.表</div><input id="m-src" placeholder="risk_db.dwd_pay_event">
+      <div class="lab" style="color:#263a35;margin-top:10px">目标宽表</div><input id="m-dst" placeholder="ods_risk_wide_table">
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="cdc-modal">取消</button><button class="btn btn-primary" id="cdcm-save">保存</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { name:'sync_pay_wide', src:'risk_db.dwd_pay_event', dst:'ods_wide_pay', st:'运行中', lag:120, pos:'mysql-bin.000032, pos=88234102', time:'2026-09-03 16:00:12' },
+    { name:'sync_login_wide', src:'risk_db.dwd_login_event', dst:'ods_wide_login', st:'运行中', lag:86, pos:'mysql-bin.000021, pos=22014807', time:'2026-09-03 16:00:12' },
+    { name:'sync_black_wide', src:'risk_db.dim_black_list', dst:'ods_dim_black', st:'已暂停', lag:0, pos:'mysql-bin.000015, pos=11230931', time:'2026-09-03 08:00:00' },
+    { name:'sync_industry_wide', src:'risk_db.dim_industry', dst:'ods_dim_industry', st:'运行中', lag:60, pos:'mysql-bin.000028, pos=55890021', time:'2026-09-03 16:00:12' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function rowHtml(c, i) { const run = c.st === '运行中';
+    return `<tr data-i="${i}"><td style="font-weight:600;color:#17423c">${esc(c.name)}</td><td class="code-mono">${esc(c.src)}</td><td class="code-mono">${esc(c.dst)}</td>
+      <td><span class="tag ${run?'tag-green':'tag-gray2'}">${c.st}</span></td>
+      <td>${run ? `<span class="tag ${c.lag > 1000 ? 'tag-red' : 'tag-teal'}">${c.lag}ms</span>` : '-'}</td>
+      <td class="code-mono">${esc(c.pos)}</td>
+      <td class="td-actions">${run ? `<button class="btn-link danger" data-pause="${i}">暂停</button>` : `<button class="btn-link" data-resume="${i}">恢复</button>`}
+        <button class="btn-link danger" data-del="${i}">删除</button></td></tr>`; }
+  function render(list){ document.getElementById('cdc-body').innerHTML = list.map(c => rowHtml(c, D.indexOf(c))).join(''); document.getElementById('cdc-total').textContent = '共 ' + list.length + ' 条'; }
+  function fullRender(){ render(D); }
+  document.getElementById('f-kw').addEventListener('input', function(){ const kw = this.value.trim().toLowerCase(); render(D.filter(c => !kw || c.name.toLowerCase().includes(kw) || c.src.includes(kw))); });
+  document.getElementById('q-btn').onclick = () => document.getElementById('f-kw').dispatchEvent(new Event('input'));
+  document.getElementById('cdcm-save').onclick = () => { const name = document.getElementById('m-name').value.trim();
+    if (!name) { alert('任务名称必填'); return; }
+    D.push({ name, src: document.getElementById('m-src').value.trim()||'-', dst: document.getElementById('m-dst').value.trim()||'-', st:'运行中', lag:0, pos:'mysql-bin.0000xx, pos=0', time:'2026-09-03 17:00:00' });
+    closeModal('cdc-modal'); fullRender(); };
+  document.addEventListener('click', e => {
+    const p = e.target.closest('[data-pause]'); if (p) { D[+p.dataset.pause].st = '已暂停'; fullRender(); return; }
+    const r = e.target.closest('[data-resume]'); if (r) { D[+r.dataset.resume].st = '运行中'; D[+r.dataset.resume].lag = 80; fullRender(); return; }
+    const del = e.target.closest('[data-del]'); if (del) { const c = D[+del.dataset.del]; if (confirm(`确认删除同步任务「${c.name}」？`)) { D.splice(+del.dataset.del,1); fullRender(); } } });
+  fullRender();
+})();
+</script>
+</body>
+</html>

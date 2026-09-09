@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>操作日志 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.tag-green{color:#0f8a3d;background:#e7f8ee}.tag-red{color:#d03050;background:#fdeaea}.tag-gray2{color:#5b7470;background:#eef2f1}.tag-teal{color:#0f766e;background:#e2f6f2}.tag-orange{color:#c2580a;background:#fdf1e3}.tag-blue{color:#0958d9;background:#e6f4ff}.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}</style>
+</head>
+<body data-page="op-logs">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi"><div class="kpi-lab">今日操作</div><div class="kpi-val">56<small>次</small></div></div>
+        <div class="kpi"><div class="kpi-lab">成功</div><div class="kpi-val" style="color:#0f8a3d">54<small>次</small></div></div>
+        <div class="kpi"><div class="kpi-lab">失败</div><div class="kpi-val" style="color:#d03050" id="kpi-fail">0</div></div>
+        <div class="kpi"><div class="kpi-lab">平均耗时</div><div class="kpi-val">142<small>ms</small></div></div>
+      </div>
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索 操作人 / 对象" style="width:220px">
+          <select id="f-mod" style="width:150px">
+            <option value="">全部模块</option><option>风控规则</option><option>风控策略</option><option>名单库</option><option>衍生属性</option><option>决策码</option><option>用户管理</option><option>权限配置</option><option>告警管理</option><option>集群管理</option><option>同步管理</option>
+          </select>
+          <select id="f-res" style="width:120px">
+            <option value="">全部结果</option><option>成功</option><option>失败</option>
+          </select>
+          <button class="btn btn-primary" id="q-btn">查询</button>
+          <span style="margin-left:auto"><button class="btn" id="exp-btn">导出 CSV</button></span>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1280px">
+            <thead><tr>
+              <th style="width:170px">时间</th><th style="width:110px">操作人</th><th style="width:100px">模块</th><th style="width:90px">操作类型</th>
+              <th>操作对象 / 内容</th><th style="width:130px">来源 IP</th><th style="width:80px">耗时</th><th style="width:80px">结果</th><th style="width:70px">操作</th>
+            </tr></thead>
+            <tbody id="ol-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="ol-total">共 0 条</span><span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="dt-modal">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-head"><h3 id="dt-title">操作日志详情</h3><button class="btn" data-close="dt-modal">×</button></div>
+    <div class="modal-body" id="dt-body"></div>
+    <div class="modal-foot"><button class="btn" data-close="dt-modal">关闭</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { who:'risk_zhang', role:'风控运营', mod:'风控规则', act:'启用规则', obj:'规则 R-2041「单笔转账金额超 5 万」', ip:'10.0.12.18', ms:126, res:'成功', time:'2026-09-03 16:01:22', req:'{"ruleId":"R-2041","status":"enabled","operator":"risk_zhang"}', rsp:'{"code":0,"message":"success"}' },
+    { who:'risk_zhang', role:'风控运营', mod:'风控规则', act:'修改规则', obj:'规则 R-2041 阈值 30000 → 50000', ip:'10.0.12.18', ms:340, res:'成功', time:'2026-09-03 15:58:40', req:'{"ruleId":"R-2041","before":{"amount":30000},"after":{"amount":50000}}', rsp:'{"code":0,"version":"v8"}' },
+    { who:'list_wang', role:'名单管理员', mod:'名单库', act:'导入名单', obj:'批量导入「设备黑名单」1,240 条', ip:'10.0.12.41', ms:5820, res:'成功', time:'2026-09-03 15:42:11', req:'{"type":"DEVICE","file":"dev_black_20260903.xlsx","rows":1240}', rsp:'{"code":0,"valid":1240,"failed":0}' },
+    { who:'risk_li', role:'风控查看', mod:'衍生属性', act:'查询导出', obj:'导出「设备指纹画像」明细 2,560 行', ip:'10.0.12.32', ms:152, res:'成功', time:'2026-09-03 15:30:05', req:'{"field":"device_fp","page":1,"size":2560}', rsp:'{"code":0,"rows":2560,"url":"/export/..."}' },
+    { who:'admin', role:'超级管理员', mod:'用户管理', act:'停用账号', obj:'停用账号 risk_chen（风控运营）', ip:'10.0.12.5', ms:89, res:'成功', time:'2026-09-03 15:12:47', req:'{"account":"risk_chen","action":"disable"}', rsp:'{"code":0}' },
+    { who:'ops_zhang', role:'系统管理员', mod:'集群管理', act:'重启组件', obj:'Flink 计算组 flink-node-credit', ip:'10.0.8.5', ms:20410, res:'成功', time:'2026-09-03 14:55:30', req:'{"component":"flink-node-credit","action":"restart"}', rsp:'{"code":0,"pid":29511}' },
+    { who:'risk_zhang', role:'风控运营', mod:'风控策略', act:'发布策略', obj:'策略 STR-2003「大额转账实时拦截」v3', ip:'10.0.12.18', ms:215, res:'成功', time:'2026-09-03 14:30:02', req:'{"strategyId":"STR-2003","version":3,"publish":true}', rsp:'{"code":0,"node":"risk-pay"}' },
+    { who:'audit_wang', role:'审核专员', mod:'决策码', act:'新增决策码', obj:'决策码 D-3301「需人工复核」', ip:'10.0.12.60', ms:96, res:'成功', time:'2026-09-03 11:40:18', req:'{"code":"D-3301","action":"MANUAL_REVIEW"}', rsp:'{"code":0}' },
+    { who:'risk_li', role:'风控查看', mod:'告警管理', act:'查看告警', obj:'查询 9 月告警统计报表', ip:'10.0.12.32', ms:45, res:'成功', time:'2026-09-03 11:02:33', req:'{"from":"2026-09-01","to":"2026-09-03"}', rsp:'{"code":0,"rows":128}' },
+    { who:'ops_zhang', role:'系统管理员', mod:'权限配置', act:'调整权限', obj:'为角色「名单管理员」增加导出权限', ip:'10.0.8.5', ms:0, res:'失败', time:'2026-09-03 10:48:56', req:'{"role":"list_manager","perm":"risk:list:export"}', rsp:'{"code":40003,"message":"权限编码重复，请检查后重试"}' },
+    { who:'risk_zhang', role:'风控运营', mod:'风控规则', act:'下线规则', obj:'规则 R-1973「历史设备 7 天」下架', ip:'10.0.12.18', ms:188, res:'成功', time:'2026-09-03 10:12:20', req:'{"ruleId":"R-1973","status":"disabled"}', rsp:'{"code":0}' },
+    { who:'list_wang', role:'名单管理员', mod:'名单库', act:'删除名单', obj:'删除「账号黑名单」8 条记录', ip:'10.0.12.41', ms:134, res:'成功', time:'2026-09-03 09:52:10', req:'{"type":"ACCOUNT","ids":["a_90012","a_90013","a_90014","a_90015","a_90016","a_90017","a_90018","a_90019"]}', rsp:'{"code":0,"deleted":8}' },
+    { who:'ops_zhang', role:'系统管理员', mod:'同步管理', act:'暂停同步', obj:'暂停同步任务 sync_black_wide', ip:'10.0.8.5', ms:203, res:'成功', time:'2026-09-03 08:00:00', req:'{"task":"sync_black_wide","action":"pause"}', rsp:'{"code":0}' },
+    { who:'risk_zhang', role:'风控运营', mod:'风控策略', act:'修改策略', obj:'策略 STR-2003 场景绑定 → 登录/支付', ip:'10.0.12.18', ms:0, res:'失败', time:'2026-09-02 23:15:44', req:'{"strategyId":"STR-2003","scene":"login,pay"}', rsp:'{"code":50007,"message":"策略已发布，禁止修改已发布版本"}' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const MOD_CLS = { '新增':'tag-teal', '修改':'tag-blue', '删除':'tag-red', '启用':'tag-teal', '停用':'tag-orange', '暂停':'tag-orange', '导入':'tag-teal', '导出':'tag-gray2', '查询':'tag-gray2', '重启':'tag-orange', '发布':'tag-teal', '下线':'tag-gray2', '调整':'tag-blue', '查看':'tag-gray2' };
+  function actTag(a) { const k = Object.keys(MOD_CLS).find(x => a.startsWith(x)); return `<span class="tag ${MOD_CLS[k]||'tag-gray2'}">${a}</span>`; }
+  function rowHtml(r) { return `<tr><td class="num" style="color:#5b7470">${r.time}</td><td style="font-weight:600;color:#17423c">${esc(r.who)}</td><td>${esc(r.mod)}</td><td>${actTag(r.act)}</td><td>${esc(r.obj)}</td><td class="mono">${r.ip}</td><td class="num">${r.ms}ms</td><td><span class="tag ${r.res==='成功'?'tag-green':'tag-red'}">${r.res}</span></td><td class="td-actions"><button class="btn-link" data-d="${r.i}">详情</button></td></tr>`; }
+  const D2 = D.map((x,i)=>({...x,i}));
+  function apply(){
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    const mo = document.getElementById('f-mod').value;
+    const rs = document.getElementById('f-res').value;
+    const list = D2.filter(r => (!kw || r.who.toLowerCase().includes(kw) || r.obj.toLowerCase().includes(kw)) && (!mo || r.mod === mo) && (!rs || r.res === rs));
+    document.getElementById('ol-body').innerHTML = list.map(rowHtml).join('');
+    document.getElementById('ol-total').textContent = '共 ' + list.length + ' 条';
+    document.getElementById('kpi-fail').textContent = D2.filter(r => r.res === '失败').length;
+  }
+  function kv(k, v) { return `<div class="kv-block"><div class="k">${k}</div><div class="v">${v}</div></div>`; }
+  function showDetail(r) {
+    document.getElementById('dt-title').textContent = '操作日志详情 · ' + r.time;
+    document.getElementById('dt-body').innerHTML =
+      `<div class="kv-grid">${kv('操作人', esc(r.who) + ' <span class="muted">(' + r.role + ')</span>')}${kv('模块 / 操作', esc(r.mod) + ' / ' + esc(r.act))}${kv('来源 IP', '<span class="mono">' + r.ip + '</span>')}${kv('耗时', r.ms + ' ms')}${kv('结果', '<span class="tag ' + (r.res === '成功' ? 'tag-green' : 'tag-red') + '">' + r.res + '</span>')}${kv('发生时间', r.time)}</div>` +
+      `<div class="kv-block" style="margin-top:10px"><div class="k">操作内容</div><div class="v">${esc(r.obj)}</div></div>` +
+      `<div class="kv-block" style="margin-top:10px"><div class="k">请求参数</div><div class="mono" style="font-size:12px;color:#0f766e">${esc(r.req)}</div></div>` +
+      `<div class="kv-block" style="margin-top:10px"><div class="k">返回结果</div><div class="mono" style="font-size:12px;color:${r.res==='成功'?'#0f8a3d':'#d03050'}">${esc(r.rsp)}</div></div>`;
+    openModal('dt-modal');
+  }
+  document.getElementById('f-kw').addEventListener('input', apply);
+  document.getElementById('f-mod').addEventListener('change', apply);
+  document.getElementById('f-res').addEventListener('change', apply);
+  document.getElementById('q-btn').onclick = apply;
+  document.getElementById('exp-btn').onclick = () => alert('操作日志已导出 CSV（演示）：op_logs_2026-09-03.csv');
+  document.addEventListener('click', e => { const d = e.target.closest('[data-d]'); if (d) showDetail(D2[+d.dataset.d]); });
+  apply();
+})();
+</script>
+</body>
+</html>

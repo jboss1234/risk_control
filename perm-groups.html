@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>权限分组 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.code-mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#0f766e;}</style>
+</head>
+<body data-page="perm-groups">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="table-card">
+        <div style="display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #eef3f2">
+          <div style="font-size:14px;font-weight:600;color:#17423c">权限分组</div>
+          <span style="margin-left:auto"><button class="btn btn-primary" data-open="pg-modal">＋ 新增分组</button></span>
+        </div>
+        <div class="table-scroll">
+          <table class="grid" style="min-width:900px">
+            <thead><tr><th style="width:180px">分组名称</th><th style="width:200px">分组编码</th><th>说明</th><th style="width:110px">权限数</th><th style="width:140px">操作</th></tr></thead>
+            <tbody id="pg-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="pg-total">共 0 条</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="pg-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head"><h3 id="pgm-title">新增分组</h3><button class="btn" data-close="pg-modal">×</button></div>
+    <div class="modal-body">
+      <div class="lab" style="color:#263a35">分组名称 <b style="color:#d03050">*</b></div><input id="m-name">
+      <div class="lab" style="color:#263a35;margin-top:10px">分组编码 <b style="color:#d03050">*</b></div><input id="m-code">
+      <div class="lab" style="color:#263a35;margin-top:10px">说明</div><textarea id="m-desc" rows="3" style="width:100%;resize:none"></textarea>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="pg-modal">取消</button><button class="btn btn-primary" id="pgm-save">保存</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { name:'实时大屏', code:'dashboard', desc:'大盘查看相关权限', n:1 },
+    { name:'事件查询', code:'event_query', desc:'请求明细/风险列表/旁路测试', n:3 },
+    { name:'属性与特征', code:'feature', desc:'属性字典/衍生属性/指标', n:5 },
+    { name:'策略配置', code:'strategy_cfg', desc:'节点/场景/策略/规则配置', n:6 },
+    { name:'名单与数据', code:'data_product', desc:'名单库与宽表', n:3 },
+    { name:'系统管理', code:'sys_admin', desc:'用户/角色/权限与运维', n:6 },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function rowHtml(g, i) { return `<tr data-i="${i}"><td style="font-weight:600;color:#17423c">${esc(g.name)}</td><td><span class="code-mono">${esc(g.code)}</span></td><td style="color:#41605b">${esc(g.desc)}</td><td class="num">${g.n}</td><td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link danger" data-d="${i}">删除</button></td></tr>`; }
+  function render(list){ document.getElementById('pg-body').innerHTML = list.map(g => rowHtml(g, D.indexOf(g))).join(''); document.getElementById('pg-total').textContent = '共 ' + list.length + ' 条'; }
+  function fullRender(){ render(D); }
+  let _e = -1;
+  function openForm(i){ _e = i; const g = i === -1 ? {} : D[i];
+    document.getElementById('pgm-title').textContent = i === -1 ? '新增分组' : '编辑分组';
+    document.getElementById('m-name').value = g.name||''; document.getElementById('m-code').value = g.code||''; document.getElementById('m-desc').value = g.desc||''; openModal('pg-modal'); }
+  document.querySelector('[data-open="pg-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('pgm-save').onclick = () => { const name = document.getElementById('m-name').value.trim(), code = document.getElementById('m-code').value.trim();
+    if (!name || !code) { alert('名称与编码必填'); return; }
+    const v = { name, code, desc: document.getElementById('m-desc').value.trim(), n: _e === -1 ? 0 : D[_e].n };
+    if (_e === -1) D.push(v); else D[_e] = v; closeModal('pg-modal'); fullRender(); };
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]'); if (del) { const g = D[+del.dataset.d]; if (confirm(`确认删除分组「${g.name}」？`)) { D.splice(+del.dataset.d,1); fullRender(); } } });
+  fullRender();
+})();
+</script>
+</body>
+</html>

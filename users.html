@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>用户管理 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.tag-green{color:#0f8a3d;background:#e7f8ee}.tag-gray2{color:#5b7470;background:#eef2f1}.tag-blue{color:#0958d9;background:#e6f4ff}</style>
+</head>
+<body data-page="users">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索 账号 / 姓名 / 手机" style="width:250px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto"><button class="btn btn-primary" data-open="us-modal">＋ 新增用户</button></span>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1150px">
+            <thead><tr>
+              <th style="width:150px">账号</th><th style="width:110px">姓名</th><th style="width:140px">角色</th><th style="width:140px">手机</th>
+              <th>邮箱</th><th style="width:90px">状态</th><th style="width:160px">最近登录</th><th style="width:190px">操作</th>
+            </tr></thead>
+            <tbody id="us-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="us-total">共 0 条</span><span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="us-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3 id="usm-title">新增用户</h3><button class="btn" data-close="us-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">登录账号 <b style="color:#d03050">*</b></div><input id="m-acc"></div>
+        <div><div class="lab" style="color:#263a35">姓名 <b style="color:#d03050">*</b></div><input id="m-name"></div>
+        <div><div class="lab" style="color:#263a35">角色</div><select id="m-role"><option>风控运营</option><option>风控查看</option><option>名单管理员</option></select></div>
+        <div><div class="lab" style="color:#263a35">手机</div><input id="m-phone"></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">邮箱</div><input id="m-mail"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="us-modal">取消</button><button class="btn btn-primary" id="usm-save">保存</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { acc:'admin', name:'管理员', role:'超级管理员', phone:'13800000001', mail:'admin@risk.com', st:'启用', last:'2026-09-03 16:02:11 / 10.0.12.5' },
+    { acc:'risk_zhang', name:'张风控', role:'风控运营', phone:'13900000508', mail:'zhang@risk.com', st:'启用', last:'2026-09-03 15:40:22 / 10.0.12.18' },
+    { acc:'risk_li', name:'李同学', role:'风控查看', phone:'18800000672', mail:'li@risk.com', st:'启用', last:'2026-09-03 14:11:09 / 10.0.12.32' },
+    { acc:'list_wang', name:'王名单', role:'名单管理员', phone:'15800000901', mail:'wang@risk.com', st:'启用', last:'2026-09-03 11:22:40 / 10.0.12.41' },
+    { acc:'risk_chen', name:'陈同学', role:'风控运营', phone:'18600000245', mail:'chen@risk.com', st:'停用', last:'2026-08-30 09:12:00 / 10.0.12.55' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function rowHtml(u, i) { return `<tr data-i="${i}"><td style="font-weight:600;color:#17423c">${esc(u.acc)}</td><td>${esc(u.name)}</td><td><span class="tag ${u.role==='超级管理员'?'tag-blue':'tag-teal'}">${u.role}</span></td><td>${esc(u.phone)}</td><td>${esc(u.mail)}</td><td><span class="tag ${u.st==='启用'?'tag-green':'tag-gray2'}">${u.st}</span></td><td>${esc(u.last)}</td><td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link" data-rp="${i}">重置密码</button>${u.acc==='admin'?'':`<button class="btn-link danger" data-tg="${i}">${u.st==='启用'?'停用':'启用'}</button>`}</td></tr>`; }
+  function render(list){ document.getElementById('us-body').innerHTML = list.map(u => rowHtml(u, D.indexOf(u))).join(''); document.getElementById('us-total').textContent = '共 ' + list.length + ' 条'; }
+  function fullRender(){ render(D); }
+  document.getElementById('f-kw').addEventListener('input', function(){ const kw = this.value.trim().toLowerCase(); render(D.filter(u => !kw || u.acc.toLowerCase().includes(kw) || u.name.includes(kw) || u.phone.includes(kw))); });
+  document.getElementById('q-btn').onclick = () => document.getElementById('f-kw').dispatchEvent(new Event('input'));
+  let _e = -1;
+  function openForm(i){ _e = i; const u = i === -1 ? {} : D[i];
+    document.getElementById('usm-title').textContent = i === -1 ? '新增用户' : '编辑用户';
+    document.getElementById('m-acc').value = u.acc||''; document.getElementById('m-name').value = u.name||'';
+    document.getElementById('m-role').value = u.role||'风控运营'; document.getElementById('m-phone').value = u.phone||''; document.getElementById('m-mail').value = u.mail||''; openModal('us-modal'); }
+  document.querySelector('[data-open="us-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('usm-save').onclick = () => { const acc = document.getElementById('m-acc').value.trim(), name = document.getElementById('m-name').value.trim();
+    if (!acc || !name) { alert('账号与姓名必填'); return; }
+    const v = { acc, name, role: document.getElementById('m-role').value, phone: document.getElementById('m-phone').value.trim(), mail: document.getElementById('m-mail').value.trim(), st: '启用', last: '-' };
+    if (_e === -1) D.push(v); else D[_e] = v; closeModal('us-modal'); fullRender(); };
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const rp = e.target.closest('[data-rp]'); if (rp) { const u = D[+rp.dataset.rp]; alert(`已将账号 ${u.acc} 的密码重置为初始密码（演示）`); return; }
+    const tg = e.target.closest('[data-tg]'); if (tg) { const u = D[+tg.dataset.tg]; u.st = u.st === '启用' ? '停用' : '启用'; fullRender(); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) { const u = D[+del.dataset.d]; if (confirm(`确认删除用户「${u.acc}」？`)) { D.splice(+del.dataset.d,1); fullRender(); } } });
+  fullRender();
+})();
+</script>
+</body>
+</html>

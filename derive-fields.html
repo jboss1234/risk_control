@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>衍生属性 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .type-tag { display:inline-flex; align-items:center; gap:5px; }
+  .type-ico { width:8px; height:8px; border-radius:3px; display:inline-block; }
+  .mono2 { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .row-note { font-size:12px; color:#9fb5b1; margin-top:4px; }
+</style>
+</head>
+<body data-page="derive-fields">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-name" placeholder="字段名称 / 中文名" style="width:260px">
+          <span style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn" id="batch-del">批量删除</button>
+            <button class="btn btn-primary" data-open="df-modal">＋ 新增属性</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1320px">
+            <thead><tr>
+              <th style="width:46px"><input type="checkbox" id="chk-all"></th>
+              <th style="width:250px">字段名称</th><th style="width:130px">中文名</th><th style="width:110px">字段类型</th>
+              <th style="width:110px">聚合方式</th><th style="width:110px">时间窗口</th><th style="width:90px">是否幂等</th>
+              <th style="width:90px">是否在线</th><th style="width:90px">状态</th><th style="width:200px">所属节点</th>
+              <th style="width:160px">创建时间</th><th style="width:130px">操作</th>
+            </tr></thead>
+            <tbody id="df-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="df-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal-mask" id="df-modal">
+  <div class="modal" style="max-width:660px">
+    <div class="modal-head"><h3 id="dfm-title">新增属性</h3><button class="btn" data-close="df-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">字段名称 <b style="color:#d03050">*</b></div>
+          <input id="m-name" placeholder="仅支持字母、数字、下划线" style="width:100%">
+          <div class="row-note">作为属性 key，规则/指标中引用该名称</div></div>
+        <div><div class="lab" style="color:#263a35">中文名 <b style="color:#d03050">*</b></div>
+          <input id="m-cn" style="width:100%"></div>
+        <div><div class="lab" style="color:#263a35">字段描述</div>
+          <input id="m-desc" style="width:100%"></div>
+        <div><div class="lab" style="color:#263a35">所属节点</div>
+          <select id="m-node" style="width:100%"><option value="">全部节点</option></select></div>
+        <div><div class="lab" style="color:#263a35">字段类型 <b style="color:#d03050">*</b></div>
+          <select id="m-type"><option>integer</option><option>bigint</option><option>double</option><option>decimal</option><option>varchar</option><option>datetime</option><option>list</option></select></div>
+        <div><div class="lab" style="color:#263a35">聚合方式</div>
+          <select id="m-agg"><option>无</option><option>Sum</option><option>Count</option><option>Max</option><option>Min</option><option>Avg</option></select></div>
+        <div><div class="lab" style="color:#263a35">时间窗口</div>
+          <select id="m-win"><option>不聚合</option><option>5秒</option><option>1分钟</option><option>5分钟</option><option>1小时</option><option>1天</option></select></div>
+        <div><div class="lab" style="color:#263a35">是否幂等</div>
+          <select id="m-idem"><option>否</option><option>是</option></select></div>
+        <div><div class="lab" style="color:#263a35">是否在线</div>
+          <select id="m-online"><option>是</option><option>否</option></select></div>
+        <div><div class="lab" style="color:#263a35">状态</div>
+          <select id="m-status"><option>启用</option><option>停用</option></select></div>
+        <div><div class="lab" style="color:#263a35">取数逻辑（SQL 片段）</div>
+          <textarea id="m-sql" rows="3" style="width:100%;resize:none;height:76px" placeholder="如 SUM(pay_amount)"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="df-modal">取消</button><button class="btn btn-primary" id="dfm-save">保存</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 衍生属性 · 静态演示数据 ============ */
+(function () {
+  const D = [
+    { name:'flink_1m_pay_amount_sum_uid', cn:'1分钟支付金额汇总(按用户)', type:'decimal', agg:'Sum', win:'1分钟', idem:'否', online:'是', st:'启用', node:'TRANSACTION_PHONE_SDK', sql:'SUM(pay_amount)', time:'2026-08-27 14:20:11' },
+    { name:'flink_1h_pay_order_cnt_uid',  cn:'1小时支付笔数(按用户)',    type:'bigint',  agg:'Count', win:'1小时', idem:'是', online:'是', st:'启用', node:'TRANSACTION_PHONE_SDK', sql:'COUNT(DISTINCT order_id)', time:'2026-08-27 14:20:11' },
+    { name:'flink_24h_login_ip_cnt_uid',  cn:'24小时登录IP数(按用户)',   type:'bigint',  agg:'Count', win:'1天',   idem:'否', online:'是', st:'启用', node:'LOGIN_WEB', sql:'COUNT(DISTINCT ip)', time:'2026-08-28 09:02:37' },
+    { name:'login_abnormal_ip_times_3h',  cn:'3小时异常IP登录次数',      type:'integer', agg:'Sum',  win:'不聚合', idem:'否', online:'否', st:'启用', node:'LOGIN_WEB', sql:'SUM(abnormal_flag)', time:'2026-08-28 09:02:37' },
+    { name:'pay_dev_black_flag',          cn:'支付设备黑名单标记',       type:'integer', agg:'无',   win:'不聚合', idem:'是', online:'是', st:'启用', node:'PAY_ANDROID_SDK', sql:'CASE WHEN dev in black THEN 1 ELSE 0 END', time:'2026-08-29 16:44:20' },
+    { name:'flink_5s_amt_roll_uid',       cn:'5秒滚动支付金额(按用户)',   type:'double',  agg:'Sum',  win:'5秒',    idem:'否', online:'是', st:'停用', node:'TRANSACTION_PHONE_SDK', sql:'SUM(pay_amount)', time:'2026-08-30 11:15:06' },
+    { name:'register_cnt_1d_uid',         cn:'1天注册次数(按用户)',      type:'bigint',  agg:'Count', win:'1天',  idem:'是', online:'否', st:'启用', node:'LOGIN_WEB', sql:'COUNT(*)', time:'2026-08-31 10:00:00' },
+  ];
+  const TYPE_COLOR = { integer:'#2563eb', bigint:'#0d9488', double:'#d97706', decimal:'#d97706', varchar:'#7c3aed', datetime:'#e11d48', list:'#0891b2' };
+  const IDEM = { 是:'tag-green', 否:'tag-gray2' };
+  const ONLINE = { 是:'tag-green', 否:'tag-gray2' };
+  const STATUS = { 启用:'tag-green', 停用:'tag-gray2' };
+  const ND = (n) => n ? ((DEMO.nodes.find(x=>x.nodeNo===n)||{}).nodeName || n) : '全部节点';
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  const nodeM = document.getElementById('m-node');
+  DEMO.nodes.forEach(n => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; nodeM.appendChild(o); });
+
+  function rowHtml(f, i) {
+    return `<tr data-i="${i}">
+      <td><input type="checkbox" class="row-chk"></td>
+      <td><span class="mono2" style="font-weight:600;color:#17423c">${esc(f.name)}</span>
+        <div class="row-note">${esc(f.sql)}</div></td>
+      <td>${esc(f.cn)}</td>
+      <td><span class="type-tag"><span class="type-ico" style="background:${TYPE_COLOR[f.type]}"></span>${f.type}</span></td>
+      <td>${esc(f.agg)}</td>
+      <td>${esc(f.win)}</td>
+      <td><span class="tag ${IDEM[f.idem]}">${f.idem}</span></td>
+      <td><span class="tag ${ONLINE[f.online]}">${f.online}</span></td>
+      <td><span class="tag ${STATUS[f.st]}">${f.st}</span></td>
+      <td>${ND(f.node)}</td>
+      <td>${esc(f.time)}</td>
+      <td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link danger" data-d="${i}">删除</button></td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('df-body').innerHTML = list.map(f => rowHtml(f, D.indexOf(f))).join('');
+    document.getElementById('df-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function fullRender() { render(D); document.getElementById('chk-all').checked = false; }
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('dfm-title').textContent = idx === -1 ? '新增属性' : '编辑属性';
+    const f = idx === -1 ? {} : D[idx];
+    const SET = {
+      name: f.name || '', cn: f.cn || '', desc: f.desc || '',
+      node: f.node || '', type: f.type || 'integer', agg: f.agg || '无',
+      win: f.win || '不聚合', idem: f.idem || '否', online: f.online || '是',
+      st: f.st || '启用', sql: f.sql || '',
+    };
+    document.getElementById('m-name').value = SET.name;
+    document.getElementById('m-cn').value = SET.cn;
+    document.getElementById('m-desc').value = SET.desc;
+    document.getElementById('m-node').value = SET.node;
+    document.getElementById('m-type').value = SET.type;
+    document.getElementById('m-agg').value = SET.agg;
+    document.getElementById('m-win').value = SET.win;
+    document.getElementById('m-idem').value = SET.idem;
+    document.getElementById('m-online').value = SET.online;
+    document.getElementById('m-status').value = SET.st;
+    document.getElementById('m-sql').value = SET.sql;
+    openModal('df-modal');
+  }
+  document.querySelector('[data-open="df-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('dfm-save').onclick = () => {
+    const name = document.getElementById('m-name').value.trim();
+    const cn = document.getElementById('m-cn').value.trim();
+    if (!/^[A-Za-z0-9_]+$/.test(name)) { alert('字段名称仅支持字母、数字、下划线'); return; }
+    if (!cn) { alert('中文名不能为空'); return; }
+    const v = {
+      name, cn,
+      desc: document.getElementById('m-desc').value.trim(),
+      node: document.getElementById('m-node').value,
+      type: document.getElementById('m-type').value,
+      agg: document.getElementById('m-agg').value,
+      win: document.getElementById('m-win').value,
+      idem: document.getElementById('m-idem').value,
+      online: document.getElementById('m-online').value,
+      st: document.getElementById('m-status').value,
+      sql: document.getElementById('m-sql').value.trim() || '-',
+      time: '2026-09-03 10:30:00',
+    };
+    if (_edit === -1) D.push(v); else D[_edit] = v;
+    closeModal('df-modal'); fullRender();
+  };
+
+  /* 搜索 */
+  document.getElementById('f-name').addEventListener('input', function () {
+    const kw = this.value.trim().toLowerCase();
+    render(D.filter(f => !kw || f.name.toLowerCase().includes(kw) || f.cn.includes(kw)));
+  });
+
+  /* 全选 & 批量删除 */
+  document.getElementById('chk-all').onchange = function () {
+    document.querySelectorAll('.row-chk').forEach(c => c.checked = this.checked);
+  };
+  document.getElementById('batch-del').onclick = () => {
+    const sel = [...document.querySelectorAll('.row-chk:checked')];
+    if (!sel.length) { alert('请先勾选要删除的属性'); return; }
+    if (confirm(`确认删除选中的 ${sel.length} 条属性？`)) {
+      sel.map(c => +c.closest('tr').dataset.i).sort((a, b) => b - a)
+         .forEach(i => D.splice(i, 1));
+      fullRender();
+    }
+  };
+
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]');
+    if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) {
+      const f = D[+del.dataset.d];
+      if (confirm(`确认删除属性「${f.name}」？`)) { D.splice(+del.dataset.d, 1); fullRender(); }
+    }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

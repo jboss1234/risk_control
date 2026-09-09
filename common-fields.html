@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>属性字典 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .type-tag { display:inline-flex; align-items:center; gap:4px; }
+  .type-ico { width:8px; height:8px; border-radius:3px; display:inline-block; }
+  .hdr-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px; }
+  .hdr-card { background:#fff; border:1px solid #e2ecea; border-radius:12px; padding:12px 16px;
+    box-shadow:0 1px 2px rgba(15,94,89,.04),0 2px 10px rgba(15,94,89,.05); cursor:pointer; transition:.15s; position:relative; overflow:hidden; }
+  .hdr-card:hover { border-color:#b7ddd6; transform:translateY(-1px); }
+  .hdr-card.on { border-color:#0d9488; box-shadow:0 0 0 1px #0d9488 inset; }
+  .hdr-card .bar { position:absolute; left:0; top:0; bottom:0; width:4px; }
+  .hdr-card .hnum { font-size:26px; font-weight:700; color:#0f766e; font-variant-numeric:tabular-nums; }
+  .hdr-card .hlab { font-size:12px; color:#6a8580; margin-top:2px; }
+  .bar.b1{background:#0d9488}.bar.b2{background:#7c3aed}.bar.b3{background:#d97706}.bar.b4{background:#e11d48}
+  .search-lbl { color:#263a35; font-size:13px; margin-right:6px; white-space:nowrap; }
+</style>
+</head>
+<body data-page="common-fields">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <!-- 概览卡片 -->
+      <div class="hdr-cards">
+        <div class="hdr-card" data-group=""><div class="bar b1"></div><div class="hnum" id="c-all">0</div><div class="hlab">全量字段</div></div>
+        <div class="hdr-card" data-group="rule"><div class="bar b2"></div><div class="hnum" id="c-rule">0</div><div class="hlab">规则字段</div></div>
+        <div class="hdr-card" data-group="match"><div class="bar b3"></div><div class="hnum" id="c-match">0</div><div class="hlab">匹配字段</div></div>
+        <div class="hdr-card" data-group="metric"><div class="bar b4"></div><div class="hnum" id="c-metric">0</div><div class="hlab">指标字段</div></div>
+      </div>
+
+      <!-- 工具条 -->
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-name" placeholder="字段名称 / 中文名" style="width:240px">
+          <select id="f-node" style="width:190px"><option value="">全部所属节点</option></select>
+          <span style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-primary" id="q-btn">查询</button>
+            <button class="btn btn-primary" data-open="field-modal">＋ 新增字段</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1180px">
+            <thead><tr>
+              <th style="width:220px">字段名称</th><th style="width:130px">字段类型</th><th>字段描述</th>
+              <th style="width:130px">分组</th><th style="width:120px">值类型</th><th style="width:150px">所属节点</th>
+              <th style="width:110px">创建人</th><th style="width:130px">操作</th>
+            </tr></thead>
+            <tbody id="fd-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="fd-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal-mask" id="field-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head"><h3 id="fm-title">新增字段</h3><button class="btn" data-close="field-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">字段名称 <b style="color:#d03050">*</b></div>
+          <input id="m-name" placeholder="如 accountId / payAmount"></div>
+        <div><div class="lab" style="color:#263a35">中文名 <b style="color:#d03050">*</b></div>
+          <input id="m-cn" placeholder="如 交易金额"></div>
+        <div><div class="lab" style="color:#263a35">字段类型 <b style="color:#d03050">*</b></div>
+          <select id="m-type">
+            <option>String</option><option>Integer</option><option>Decimal</option><option>Boolean</option><option>DateTime</option><option>List</option>
+          </select></div>
+        <div><div class="lab" style="color:#263a35">分组</div>
+          <select id="m-group"><option value="rule">规则字段</option><option value="match">匹配字段</option><option value="metric">指标字段</option></select></div>
+        <div><div class="lab" style="color:#263a35">值类型</div>
+          <select id="m-vt"><option>字符串</option><option>整数</option><option>小数</option><option>布尔</option><option>时间</option><option>列表</option><option>枚举</option></select></div>
+        <div><div class="lab" style="color:#263a35">所属节点</div>
+          <select id="m-node"><option value="">全部节点</option></select></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">字段描述</div>
+          <textarea id="m-desc" rows="3" style="width:100%;resize:none;height:64px" placeholder="该字段的业务含义、取值说明"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="field-modal">取消</button><button class="btn btn-primary" id="fm-save">保存</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 属性字典 · 静态演示数据 ============ */
+(function () {
+  const TYPE_COLOR = { String:'#0d9488', Integer:'#2563eb', Decimal:'#d97706', Boolean:'#7c3aed', DateTime:'#e11d48', List:'#0891b2' };
+  const D = [
+    { name:'account_id',   cn:'账号',          type:'String',   grp:'rule',   vt:'字符串', node:'TRANSACTION_PHONE_SDK', desc:'用户账号 ID（明文/密文由环境决定）', by:'管理员' },
+    { name:'amount',       cn:'交易金额',       type:'Decimal',  grp:'rule',   vt:'小数',   node:'TRANSACTION_PHONE_SDK', desc:'本次支付交易金额（元）', by:'管理员' },
+    { name:'ip',           cn:'IP 地址',        type:'String',   grp:'rule',   vt:'字符串', node:'', desc:'客户端出口 IP', by:'管理员' },
+    { name:'device_id',    cn:'设备 ID',        type:'String',   grp:'match',  vt:'字符串', node:'', desc:'设备唯一标识', by:'管理员' },
+    { name:'openid',       cn:'手游账号id',     type:'String',   grp:'rule',   vt:'字符串', node:'TRANSACTION_PHONE_SDK', desc:'游戏侧账号 ID', by:'管理员' },
+    { name:'order_id',     cn:'订单号',         type:'String',   grp:'match',  vt:'字符串', node:'TRANSACTION_PHONE_SDK', desc:'本次交易订单号', by:'管理员' },
+    { name:'channel_id',   cn:'渠道 ID',        type:'Integer',  grp:'rule',   vt:'整数',   node:'TRANSACTION_PHONE_SDK', desc:'支付渠道：1 AppStore 2 安卓 6 聚合', by:'管理员' },
+    { name:'game_id',      cn:'游戏 ID',        type:'Integer',  grp:'rule',   vt:'整数',   node:'', desc:'游戏编号', by:'管理员' },
+    { name:'risk_level',   cn:'风险等级',       type:'String',   grp:'metric', vt:'枚举',   node:'', desc:'低/中/高风险', by:'管理员' },
+    { name:'decision_code',cn:'决策码',         type:'String',   grp:'metric', vt:'枚举',   node:'', desc:'REJECT / REVIEW / PASS', by:'管理员' },
+    { name:'event_time',   cn:'事件时间',       type:'DateTime', grp:'rule',   vt:'时间',   node:'', desc:'事件发生时间（毫秒时间戳）', by:'管理员' },
+    { name:'is_black',     cn:'是否黑名单',     type:'Boolean',  grp:'match',  vt:'布尔',   node:'', desc:'名单命中结果', by:'管理员' },
+    { name:'order_cnt_12h_by_uid', cn:'12小时下单笔数(按用户)', type:'Integer', grp:'metric', vt:'整数', node:'TRANSACTION_PHONE_SDK', desc:'Flink 窗口聚合指标', by:'管理员' },
+  ];
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  const nodeSel = document.getElementById('f-node');
+  const nodeSelM = document.getElementById('m-node');
+  DEMO.nodes.forEach(n => {
+    [nodeSel, nodeSelM].forEach(s => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; s.appendChild(o); });
+  });
+
+  const GRP_NAME = { rule:'规则字段', match:'匹配字段', metric:'指标字段' };
+
+  function render(list) {
+    const tb = document.getElementById('fd-body');
+    tb.innerHTML = list.map(f => `<tr>
+      <td><span style="font-weight:600;color:#17423c">${esc(f.cn)}</span>
+        <span class="muted" style="font-size:11px;margin-left:6px;font-family:ui-monospace,Menlo,monospace">${esc(f.name)}</span></td>
+      <td><span class="type-tag"><span class="type-ico" style="background:${TYPE_COLOR[f.type]}"></span>${f.type}</span></td>
+      <td style="color:#41605b">${esc(f.desc || '-')}</td>
+      <td><span class="tag tag-teal">${GRP_NAME[f.grp]}</span></td>
+      <td>${esc(f.vt)}</td>
+      <td>${f.node ? (DEMO.nodes.find(n=>n.nodeNo===f.node)||{}).nodeName || '-' : '全部节点'}</td>
+      <td>${esc(f.by)}</td>
+      <td class="td-actions">
+        <button class="btn-link" data-e="${D.indexOf(f)}">编辑</button>
+        <button class="btn-link danger" data-d="${D.indexOf(f)}">删除</button>
+      </td></tr>`).join('');
+    document.getElementById('fd-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function refreshCards() {
+    document.getElementById('c-all').textContent = D.length;
+    document.getElementById('c-rule').textContent = D.filter(f=>f.grp==='rule').length;
+    document.getElementById('c-match').textContent = D.filter(f=>f.grp==='match').length;
+    document.getElementById('c-metric').textContent = D.filter(f=>f.grp==='metric').length;
+  }
+  function fullRender() { render(D); refreshCards(); }
+
+  let curGrp = ''; let kw = ''; let nd = '';
+  function renderFiltered() {
+    render(D.filter(f => (!curGrp || f.grp === curGrp) && (!nd || !f.node || f.node === nd) &&
+      (!kw || f.name.toLowerCase().includes(kw) || f.cn.includes(kw) || (f.desc||'').includes(kw))));
+  }
+
+  /* 概览卡片切换（单选） */
+  document.querySelectorAll('.hdr-card').forEach(c => {
+    c.onclick = () => {
+      document.querySelectorAll('.hdr-card').forEach(x => x.classList.remove('on'));
+      c.classList.add('on');
+      curGrp = c.dataset.group;
+      renderFiltered();
+    };
+  });
+  document.getElementById('q-btn').onclick = () => {
+    kw = document.getElementById('f-name').value.trim().toLowerCase();
+    nd = document.getElementById('f-node').value;
+    renderFiltered();
+  };
+  document.getElementById('f-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('q-btn').click(); });
+
+  /* 新增/编辑 */
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('fm-title').textContent = idx === -1 ? '新增字段' : '编辑字段';
+    const f = idx === -1 ? {} : D[idx];
+    document.getElementById('m-name').value = f.name || '';
+    document.getElementById('m-cn').value = f.cn || '';
+    document.getElementById('m-type').value = f.type || 'String';
+    document.getElementById('m-group').value = f.grp || 'rule';
+    document.getElementById('m-vt').value = f.vt || '字符串';
+    document.getElementById('m-node').value = f.node || '';
+    document.getElementById('m-desc').value = f.desc || '';
+    openModal('field-modal');
+  }
+  document.querySelector('[data-open="field-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('fm-save').onclick = () => {
+    const v = {
+      name: document.getElementById('m-name').value.trim(),
+      cn: document.getElementById('m-cn').value.trim(),
+      type: document.getElementById('m-type').value,
+      grp: document.getElementById('m-group').value,
+      vt: document.getElementById('m-vt').value,
+      node: document.getElementById('m-node').value,
+      desc: document.getElementById('m-desc').value.trim(),
+      by: '管理员',
+    };
+    if (!v.name || !v.cn) { alert('字段名称与中文名不能为空'); return; }
+    if (_edit === -1) D.push(v); else D[_edit] = v;
+    closeModal('field-modal'); fullRender();
+  };
+
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]');
+    if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) {
+      const f = D[+del.dataset.d];
+      if (confirm(`确认删除字段「${f.cn} (${f.name})」？`)) { D.splice(+del.dataset.d, 1); fullRender(); }
+    }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

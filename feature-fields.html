@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Flink 指标 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .mono2 { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .type-dot { width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:6px; }
+  .row-note { font-size:12px; color:#9fb5b1; }
+</style>
+</head>
+<body data-page="feature-fields">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <div class="filter-item" style="flex-direction:row;align-items:center;gap:0"><span class="lab">所属节点</span>
+            <select id="f-node" style="width:200px"><option value="">全部</option></select></div>
+          <input id="f-kw" placeholder="搜索指标名称 / 代码 / 所属表" style="width:280px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" data-open="feat-modal">＋ 新增指标</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1180px">
+            <thead><tr>
+              <th style="width:170px">所属节点</th><th style="width:280px">指标名称</th><th style="width:110px">数据类型</th>
+              <th style="width:220px">取数口径</th><th style="width:130px">所属表</th><th style="width:90px">状态</th>
+              <th style="width:160px">更新时间</th><th style="width:150px">操作</th>
+            </tr></thead>
+            <tbody id="feat-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="feat-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/编辑指标弹窗 -->
+<div class="modal-mask" id="feat-modal">
+  <div class="modal" style="max-width:660px">
+    <div class="modal-head"><h3 id="fm-title">新增指标</h3><button class="btn" data-close="feat-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">所属节点 <b style="color:#d03050">*</b></div>
+          <select id="m-node"></select></div>
+        <div><div class="lab" style="color:#263a35">中文名 <b style="color:#d03050">*</b></div>
+          <input id="m-cn" placeholder="如 24小时购买次数(按用户)"></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">指标代码 <b style="color:#d03050">*</b></div>
+          <input id="m-code" placeholder="如 count_buyerid_24h_uid（仅字母数字下划线）"></div>
+        <div><div class="lab" style="color:#263a35">数据类型</div>
+          <select id="m-type"><option>数值</option><option>整数</option><option>小数</option><option>布尔</option><option>字符串</option></select></div>
+        <div><div class="lab" style="color:#263a35">所属表</div>
+          <input id="m-table" placeholder="如 dwd_pay_event"></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">取数口径</div>
+          <textarea id="m-sql" rows="3" style="width:100%;resize:none;height:80px" placeholder="聚合/取数口径说明，如 SUM(pay_amount) GROUP BY uid"></textarea></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">说明</div>
+          <textarea id="m-remark" rows="2" style="width:100%;resize:none;height:56px"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="feat-modal">取消</button><button class="btn btn-primary" id="fm-save">保存</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ Flink 指标 · 静态演示数据 ============ */
+(function () {
+  const D = [
+    { node:'TRANSACTION_PHONE_SDK', cn:'24小时购买次数(按用户)',  code:'count_buyerid_24h_uid', type:'整数', table:'dwd_pay_event', sql:'COUNT(DISTINCT buyer_id) FILTER(1d)', st:'启用', time:'2026-09-02 18:22:09', remark:'电商/交易侧常用' },
+    { node:'TRANSACTION_PHONE_SDK', cn:'12小时下单笔数(按用户)', code:'order_cnt_12h_by_uid',  type:'整数', table:'dwd_pay_event', sql:'COUNT(DISTINCT order_id) FILTER(12h)', st:'启用', time:'2026-09-02 18:22:09', remark:'' },
+    { node:'TRANSACTION_PHONE_SDK', cn:'1小时去重支付单数(按用户)', code:'uid_240_1h_distinct_count_pay_orderid', type:'整数', table:'dwd_pay_event', sql:'COUNT(DISTINCT pay_order_id) FILTER(1h)', st:'启用', time:'2026-09-03 09:10:33', remark:'用户维度窗口' },
+    { node:'TRANSACTION_PHONE_SDK', cn:'24小时去重支付单数(按用户)', code:'uid_240_24h_distinct_count_pay_orderid', type:'整数', table:'dwd_pay_event', sql:'COUNT(DISTINCT pay_order_id) FILTER(24h)', st:'启用', time:'2026-09-03 09:10:33', remark:'' },
+    { node:'TRANSACTION_PHONE_SDK', cn:'24小时去重IP数(按用户)', code:'uid_240_24h_distinct_count_ip', type:'整数', table:'dwd_pay_event', sql:'COUNT(DISTINCT ip)', st:'启用', time:'2026-09-03 09:10:33', remark:'' },
+    { node:'LOGIN_WEB', cn:'3小时登录次数(按用户)', code:'login_cnt_3h_by_uid', type:'整数', table:'dwd_login_event', sql:'COUNT(*) FILTER(3h)', st:'启用', time:'2026-09-03 11:02:12', remark:'' },
+    { node:'LOGIN_WEB', cn:'24小时登录IP数(按用户)', code:'login_ip_cnt_24h_uid', type:'整数', table:'dwd_login_event', sql:'COUNT(DISTINCT ip)', st:'停用', time:'2026-09-03 11:02:12', remark:'待下线' },
+    { node:'PAY_ANDROID_SDK', cn:'1小时支付金额(按用户)', code:'pay_amount_1h_by_uid', type:'小数', table:'dwd_pay_event', sql:'SUM(pay_amount) FILTER(1h)', st:'启用', time:'2026-09-03 14:44:56', remark:'' },
+    { node:'LOGIN_API', cn:'1分钟接口调用次数(按Key)', code:'api_cnt_1m_by_apikey', type:'整数', table:'dwd_api_event', sql:'COUNT(*) FILTER(1m)', st:'启用', time:'2026-09-03 15:30:00', remark:'' },
+  ];
+  const TYPE_COLOR = { '整数':'#2563eb', '小数':'#d97706', '数值':'#0d9488', '布尔':'#7c3aed', '字符串':'#0891b2' };
+  const nodeSel = document.getElementById('f-node');
+  const nodeM = document.getElementById('m-node');
+  DEMO.nodes.forEach(n => { [nodeSel, nodeM].forEach(s => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; s.appendChild(o); }); });
+  const ND = (n) => n ? ((DEMO.nodes.find(x => x.nodeNo === n) || {}).nodeName || n) : '全部节点';
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  function rowHtml(f, i) {
+    return `<tr data-i="${i}">
+      <td>${ND(f.node)}</td>
+      <td><div style="font-weight:600;color:#17423c">${esc(f.cn)}</div><div class="mono2 row-note">${esc(f.code)}</div></td>
+      <td><span class="type-dot" style="background:${TYPE_COLOR[f.type]}"></span>${f.type}</td>
+      <td class="mono2" style="font-size:12px;color:#41605b">${esc(f.sql)}</td>
+      <td class="mono2">${esc(f.table)}</td>
+      <td><span class="tag ${f.st === '启用' ? 'tag-green' : 'tag-gray2'}">${f.st}</span></td>
+      <td>${esc(f.time)}</td>
+      <td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link danger" data-d="${i}">删除</button></td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('feat-body').innerHTML = list.map(f => rowHtml(f, D.indexOf(f))).join('');
+    document.getElementById('feat-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function fullRender() { render(D); }
+
+  function applyFilter() {
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    const nd = nodeSel.value;
+    render(D.filter(f => (!nd || !f.node || f.node === nd) &&
+      (!kw || f.cn.toLowerCase().includes(kw) || f.code.toLowerCase().includes(kw) || f.table.toLowerCase().includes(kw))));
+  }
+  document.getElementById('q-btn').onclick = applyFilter;
+  document.getElementById('f-kw').addEventListener('input', applyFilter);
+  nodeSel.onchange = applyFilter;
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('fm-title').textContent = idx === -1 ? '新增指标' : '编辑指标';
+    const f = idx === -1 ? {} : D[idx];
+    document.getElementById('m-node').value = f.node || '';
+    document.getElementById('m-cn').value = f.cn || '';
+    document.getElementById('m-code').value = f.code || '';
+    document.getElementById('m-type').value = f.type || '数值';
+    document.getElementById('m-table').value = f.table || '';
+    document.getElementById('m-sql').value = f.sql || '';
+    document.getElementById('m-remark').value = f.remark || '';
+    openModal('feat-modal');
+  }
+  document.querySelector('[data-open="feat-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('fm-save').onclick = () => {
+    const cn = document.getElementById('m-cn').value.trim();
+    const code = document.getElementById('m-code').value.trim();
+    if (!cn || !/^[A-Za-z0-9_]+$/.test(code)) { alert('中文名必填，且指标代码仅支持字母数字下划线'); return; }
+    const v = { node: document.getElementById('m-node').value, cn, code, type: document.getElementById('m-type').value,
+      table: document.getElementById('m-table').value.trim(), sql: document.getElementById('m-sql').value.trim() || '-',
+      remark: document.getElementById('m-remark').value.trim(), st: '启用', time: '2026-09-03 16:00:00' };
+    if (_edit === -1) D.push(v); else D[_edit] = v;
+    closeModal('feat-modal'); fullRender();
+  };
+
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) { const f = D[+del.dataset.d]; if (confirm(`确认删除指标「${f.cn}」？`)) { D.splice(+del.dataset.d, 1); fullRender(); } }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

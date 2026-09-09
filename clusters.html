@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>集群管理 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.tag-green{color:#0f8a3d;background:#e7f8ee}.tag-gray2{color:#5b7470;background:#eef2f1}.tag-blue{color:#0958d9;background:#e6f4ff}.code-mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#0f766e}
+.cluster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;}
+.cluster-card{background:#fff;border:1px solid #e2ecea;border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,94,89,.04);}
+.meter{height:6px;border-radius:99px;background:#e8f1ef;overflow:hidden;margin-top:6px}.meter i{display:block;height:100%;background:linear-gradient(90deg,#0d9488,#14b8a6);border-radius:99px;}</style>
+</head>
+<body data-page="clusters">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="cluster-grid" id="cl-body"></div>
+      <div style="margin-top:12px;text-align:right"><button class="btn btn-primary" data-open="cl-modal">＋ 接入集群</button></div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="cl-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3>接入集群</h3><button class="btn" data-close="cl-modal">×</button></div>
+    <div class="modal-body">
+      <div class="lab" style="color:#263a35">集群名称 <b style="color:#d03050">*</b></div><input id="m-name">
+      <div class="lab" style="color:#263a35;margin-top:10px">类型</div>
+      <select id="m-type"><option>Flink</option><option>CDC</option><option>Kafka</option></select>
+      <div class="lab" style="color:#263a35;margin-top:10px">地址</div><input id="m-addr" placeholder="host:port">
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="cl-modal">取消</button><button class="btn btn-primary" id="clm-save">保存</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { name:'flink-01', type:'Flink', addr:'10.20.1.11:8081', ver:'1.16.2', st:'运行中', tm:8, slots:32, used:21, jobs:14 },
+    { name:'flink-02', type:'Flink', addr:'10.20.1.12:8081', ver:'1.16.2', st:'运行中', tm:6, slots:24, used:9, jobs:8 },
+    { name:'flink-03', type:'Flink', addr:'10.20.1.13:8081', ver:'1.16.2', st:'运行中', tm:3, slots:12, used:4, jobs:3 },
+    { name:'cdc-sync-01', type:'CDC', addr:'10.20.2.21:3306', ver:'2.4.0', st:'运行中', tm:0, slots:0, used:0, jobs:0 },
+    { name:'kafka-ops', type:'Kafka', addr:'10.20.3.31:9092', ver:'3.4.0', st:'已停止', tm:0, slots:0, used:0, jobs:0 },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  function render(list){
+    document.getElementById('cl-body').innerHTML = list.map(c => {
+      const run = c.st === '运行中';
+      const pct = c.slots ? Math.round(c.used / c.slots * 100) : 0;
+      return `<div class="cluster-card">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-weight:700;color:#133832">${esc(c.name)}</span>
+          <span class="tag ${c.type==='Flink'?'tag-blue':c.type==='CDC'?'tag-teal':'tag-gray2'}">${c.type}</span>
+          <span class="tag ${run?'tag-green':'tag-gray2'}">${c.st}</span><span style="margin-left:auto;font-size:12px;color:#9fb5b1">v${esc(c.ver)}</span></div>
+        <div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#6a8580;margin-top:8px">${esc(c.addr)}</div>
+        ${c.type === 'Flink' ? `<div style="margin-top:10px;font-size:12px;color:#41605b">
+            TaskManager ${c.tm} 个 · Slot ${c.used}/${c.slots} · 任务 ${c.jobs}
+            <div class="meter"><i style="width:${pct}%"></i></div></div>` : `<div style="margin-top:10px;font-size:12px;color:#9fb5b1">${c.type} 同步源（无 Flink Slot）</div>`}
+        <div class="table-foot" style="padding:8px 0 0;border-top:1px solid #f0f5f4">
+          <span style="font-size:12px;color:#6a8580">接入时间 2026-05-12</span>
+          <span class="pager">${run ? `<button class="btn" style="padding:3px 12px" data-stop>停止</button>` : `<button class="btn" style="padding:3px 12px" data-start>启动</button>`}
+          <button class="btn" style="padding:3px 12px;color:#d03050" data-del>删除</button></span></div>
+      </div>`;
+    }).join('');
+  }
+  function fullRender(){ render(D); }
+  document.addEventListener('click', e => {
+    const stop = e.target.closest('[data-stop]'); if (stop) { const card = stop.closest('.cluster-card'); const name = card.querySelector('span:first-child').textContent; const c = D.find(x=>x.name===name); c.st='已停止'; fullRender(); return; }
+    const start = e.target.closest('[data-start]'); if (start) { const card = start.closest('.cluster-card'); const name = card.querySelector('span:first-child').textContent; const c = D.find(x=>x.name===name); c.st='运行中'; fullRender(); return; }
+    const del = e.target.closest('[data-del]'); if (del) { const card = del.closest('.cluster-card'); const name = card.querySelector('span:first-child').textContent; if (confirm(`确认删除集群「${name}」？`)) { D.splice(D.findIndex(x=>x.name===name),1); fullRender(); } }
+  });
+  document.getElementById('clm-save').onclick = () => { const name = document.getElementById('m-name').value.trim();
+    if (!name) { alert('集群名称必填'); return; }
+    D.push({ name, type: document.getElementById('m-type').value, addr: document.getElementById('m-addr').value.trim(), ver:'-', st:'运行中', tm:0, slots:0, used:0, jobs:0 });
+    closeModal('cl-modal'); fullRender(); };
+  fullRender();
+})();
+</script>
+</body>
+</html>

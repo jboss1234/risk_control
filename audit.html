@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>风险列表 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-blue { color:#0958d9; background:#e6f4ff; }
+  .tag-orange { color:#c2580a; background:#fdf1e3; }
+  .tag-red { color:#d03050; background:#fdeaea; }
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  /* 固定请求ID列 */
+  #audit-grid th.fix, #audit-grid td.fix { position: sticky; }
+  #audit-grid thead th.fix { z-index:3; }
+  #audit-grid .c1 { left:0; min-width:220px; } #audit-grid th.c1 { width:220px; }
+  #audit-grid .cR { right:0; min-width:150px; } #audit-grid th.cR { width:150px; box-shadow:-6px 0 12px -12px rgba(10,50,46,.4); }
+  #audit-grid td.fix, #audit-grid th.fix { background:#fff; z-index:2; }
+  #audit-grid tbody tr:nth-child(even) td.fix { background:#f9fcfa; }
+  #audit-grid tbody tr:hover td.fix { background:#eefaf7; }
+  .hit-cell { line-height:1.7; }
+  .hit-cell .hit-name { color:#263a35; }
+  .hit-path-btn { font-size:11px; color:#0d9488; margin-left:6px; }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  /* 命中统计 chips */
+  .stats-block { padding:12px 16px; background:#fff; border:1px solid #e2ecea; border-radius:12px; margin-bottom:12px; box-shadow:0 1px 2px rgba(15,94,89,.04); }
+  .s-title-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .s-title { font-size:14px; font-weight:600; color:#17423c; }
+  .clear-filter { font-size:12px; color:#0d9488; cursor:pointer; display:none; }
+  .chip .n { display:inline-flex; min-width:20px; height:18px; padding:0 5px; align-items:center; justify-content:center; border-radius:99px; background:#e2f6f2; color:#0f766e; font-weight:600; font-size:11px; }
+  .chip.on .n { background:rgba(255,255,255,.22); color:#fff; }
+  .muted-empty { padding:22px 0; text-align:center; color:#9fb5b1; font-size:13px; }
+  .kv-wrap h5 { font-size:14px; font-weight:600; color:#17423c; margin:0 0 10px; padding-left:9px; border-left:3px solid #0d9488; }
+  .kv-block .v.mono { font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+  .kv-block .k .en { font-size:11px; color:#b0c4c0; font-family:ui-monospace,Menlo,monospace; }
+</style>
+</head>
+<body data-page="audit">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <!-- 筛选 -->
+      <div class="filter-card">
+        <div class="filter-row">
+          <div class="filter-item"><span class="lab">选择节点</span>
+            <select id="f-node" style="width:200px"><option value="">全部节点</option></select>
+          </div>
+          <div class="filter-item"><span class="lab">开始时间</span>
+            <input id="f-start" type="datetime-local" style="width:210px"></div>
+          <div class="filter-item"><span class="lab">结束时间</span>
+            <input id="f-end" type="datetime-local" style="width:210px"></div>
+          <div class="filter-item" style="align-self:flex-end">
+            <button class="btn btn-primary" id="q-btn">查询</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 规则命中统计 -->
+      <div class="stats-block">
+        <div class="s-title-row">
+          <span class="s-title">规则命中统计</span>
+          <span class="clear-filter" id="clear-filter">清除规则筛选</span>
+        </div>
+        <div class="chip-area" id="stat-chips"></div>
+      </div>
+
+      <!-- 表格 -->
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" id="audit-grid" style="min-width:1720px">
+            <thead><tr>
+              <th class="fix c1">请求ID</th>
+              <th>类型</th><th>账户</th><th>决策码</th><th>分值</th><th>命中规则</th>
+              <th>场景名</th><th>设备ID</th><th>IP地址</th><th>IP归属地</th><th>提交时间</th>
+              <th class="fix cR">操作</th>
+            </tr></thead>
+            <tbody id="audit-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="total">共 0 条数据</span>
+          <span>每页<select style="width:72px"><option>10</option><option>20</option><option>50</option></select></span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-mask" id="detail-modal">
+  <div class="modal" style="max-width:min(1400px,96vw)">
+    <div class="modal-head"><h3 id="d-title">风险详情</h3><button class="btn" data-close="detail-modal">×</button></div>
+    <div class="modal-body">
+      <div class="kv-wrap" style="margin-bottom:18px">
+        <h5>请求字段</h5>
+        <div class="kv-grid" id="d-fields"></div>
+      </div>
+      <div class="kv-wrap">
+        <h5>指标结果</h5>
+        <div class="kv-grid" id="d-metrics"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="detail-modal">关闭</button></div>
+  </div>
+</div>
+
+<!-- 命中路径弹窗 -->
+<div class="modal-mask" id="path-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-head"><h3>命中路径</h3><button class="btn" data-close="path-modal">×</button></div>
+    <div class="modal-body" id="p-body"></div>
+    <div class="modal-foot"><button class="btn btn-primary" data-close="path-modal">关闭</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 风险列表 · 静态演示数据 ============ */
+(function () {
+  const L = (code) => (DEMO.metricNames[code] || code);
+  const FIELD_LABEL = { amount:'交易金额', account_id:'账号', device_id:'设备ID', order_id:'订单号',
+    product_name:'产品名称', channel_id:'渠道 ID', openid:'手游账号id', ip:'IP 地址', game_id:'游戏 ID',
+    event_time:'事件时间', decision_code:'决策码', scene_name:'场景名' };
+
+  const ROWS = [
+    { reqId:'4cf082ba-a73d-11f1-866d-0ffb4f7ff8de', type:2, nodeNo:'TRANSACTION_PHONE_SDK', account:'138****001', dec:'REJECT', level:'reject', score:86,
+      hits:[['1天支付金额大于50000','手机端交易风控 / 交易金额策略 / 1天支付金额大于50000']], scene:'手机端交易风控',
+      device:'123****131', ip:'171.109.*.*', loc:'中国 广西壮族自治区 南宁市 (中国电信)', time:'2026-09-03 10:15:22',
+      fields:{ amount:'12999.00', account_id:'138****001', product_name:'1288元礼包', channel_id:'1', game_id:'5290', openid:'123131', order_id:'177****301', ip:'171.109.*.*' },
+      metrics:{ count_buyerid_24h_uid:4, order_cnt_12h_by_uid:28, uid_240_1h_distinct_count_pay_orderid:19, uid_240_24h_distinct_count_pay_orderid:4, uid_240_24h_distinct_count_ip:3 } },
+    { reqId:'b9a2f0d1-3e55-4f21-ba0c-8d9f1e2a77c1', type:2, nodeNo:'TRANSACTION_PHONE_SDK', account:'188****672', dec:'REVIEW', level:'review', score:62,
+      hits:[['1小时支付笔数大于30','手机端交易风控 / 支付频次策略 / 1小时支付笔数大于30']], scene:'手机端交易风控',
+      device:'86f2****aa91', ip:'120.229.*.*', loc:'中国 广东省 广州市', time:'2026-09-03 10:12:47',
+      fields:{ amount:'648.00', account_id:'188****672', product_name:'648元礼包', channel_id:'2', game_id:'5290', order_id:'166****890', ip:'120.229.*.*' },
+      metrics:{ count_buyerid_24h_uid:7, order_cnt_12h_by_uid:35, uid_240_1h_distinct_count_pay_orderid:22, uid_240_24h_distinct_count_pay_orderid:9, uid_240_24h_distinct_count_ip:5 } },
+    { reqId:'7c1e8a90-1d2b-4c3f-9e4d-5a6f7b8c9d0e', type:2, nodeNo:'LOGIN_WEB', account:'139****508', dec:'REJECT', level:'reject', score:91,
+      hits:[['设备黑名单命中','登录风控 / 登录设备策略 / 设备黑名单命中']], scene:'登录风控',
+      device:'9ab1****c88d', ip:'223.104.*.*', loc:'中国 广东省 深圳市', time:'2026-09-03 09:58:03',
+      fields:{ account_id:'139****508', device_id:'9ab1****c88d', event_time:'1788401708000', ip:'223.104.*.*', openid:'908732', game_id:'5290' },
+      metrics:{ device_black_hit:1 } },
+    { reqId:'e5d4c3b2-a109-8765-4321-0fedcba98765', type:1, nodeNo:'TRANSACTION_PHONE_SDK', account:'152****330', dec:'PASS', level:'pass', score:0,
+      hits:[], scene:'手机端交易风控',
+      device:'d31f****2210', ip:'110.86.*.*', loc:'中国 福建省 厦门市', time:'2026-09-03 09:41:18',
+      fields:{ amount:'30.00', account_id:'152****330', product_name:'30元礼包', channel_id:'1', game_id:'5290', order_id:'155****012', ip:'110.86.*.*' },
+      metrics:{ tran_1h_amount:60, count_buyerid_24h_uid:2, order_cnt_12h_by_uid:6 } },
+    { reqId:'a1b2c3d4-5e6f-7890-abcd-ef1234567890', type:2, nodeNo:'LOGIN_WEB', account:'186****245', dec:'REVIEW', level:'review', score:58,
+      hits:[['3小时异常IP登录次数大于5','登录风控 / 异常IP登录策略 / 3小时异常IP登录次数大于5']], scene:'登录风控',
+      device:'77ab****12cd', ip:'61.140.*.*', loc:'中国 广东省 广州市', time:'2026-09-03 09:20:55',
+      fields:{ account_id:'186****245', device_id:'77ab****12cd', ip:'61.140.*.*', openid:'552019', game_id:'5290' },
+      metrics:{ uid_240_24h_distinct_count_ip:6 } },
+    { reqId:'d7e8f9a0-b1c2-4d3e-8f0a-1b2c3d4e5f60', type:2, nodeNo:'TRANSACTION_PHONE_SDK', account:'186****113', dec:'REJECT', level:'reject', score:93,
+      hits:[['1天支付金额大于50000','手机端交易风控 / 交易金额策略 / 1天支付金额大于50000']], scene:'手机端交易风控',
+      device:'5e6f****c0ab', ip:'113.65.*.*', loc:'中国 广东省 东莞市', time:'2026-09-03 08:52:10',
+      fields:{ amount:'20000.00', account_id:'186****113', product_name:'648元礼包x30', channel_id:'2', game_id:'5290', order_id:'181****907', ip:'113.65.*.*' },
+      metrics:{ count_buyerid_24h_uid:9, order_cnt_12h_by_uid:46, uid_240_1h_distinct_count_pay_orderid:33, uid_240_24h_distinct_count_pay_orderid:15, uid_240_24h_distinct_count_ip:6 } },
+    { reqId:'1f2a3b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b', type:1, nodeNo:'LOGIN_WEB', account:'158****667', dec:'PASS', level:'pass', score:0,
+      hits:[], scene:'登录风控',
+      device:'a1b2****33de', ip:'116.25.*.*', loc:'中国 广东省 深圳市', time:'2026-09-03 08:33:41',
+      fields:{ account_id:'158****667', device_id:'a1b2****33de', ip:'116.25.*.*', openid:'402310', game_id:'5290' },
+      metrics:{ uid_240_24h_distinct_count_ip:1 } },
+    { reqId:'7f0e9d8c-7b6a-5948-4736-2514a3b2c1d0', type:2, nodeNo:'LOGIN_WEB', account:'139****508', dec:'REJECT', level:'reject', score:88,
+      hits:[['设备黑名单命中','登录风控 / 登录设备策略 / 设备黑名单命中'],['3小时异常IP登录次数大于5','登录风控 / 异常IP登录策略 / 3小时异常IP登录次数大于5']], scene:'登录风控',
+      device:'9ab1****c88d', ip:'223.104.*.*', loc:'中国 广东省 深圳市', time:'2026-09-03 07:26:18',
+      fields:{ account_id:'139****508', device_id:'9ab1****c88d', ip:'223.104.*.*', openid:'908732', game_id:'5290' },
+      metrics:{ device_black_hit:1, uid_240_24h_distinct_count_ip:8 } },
+    { reqId:'b4c5d6e7-f8a9-4b0c-8d1e-2f3a4b5c6d7e', type:2, nodeNo:'PAY_ANDROID_SDK', account:'138****031', dec:'REVIEW', level:'review', score:64,
+      hits:[['1小时支付笔数大于30','手机端交易风控 / 支付频次策略 / 1小时支付笔数大于30']], scene:'手机端交易风控',
+      device:'c8a9****21ef', ip:'58.62.*.*', loc:'中国 广东省 广州市', time:'2026-09-03 06:58:02',
+      fields:{ amount:'648.00', account_id:'138****031', device_id:'c8a9****21ef', pay_order_id:'PO6633****011', channel_id:'6', game_id:'5290', ip:'58.62.*.*' },
+      metrics:{ count_buyerid_24h_uid:11, order_cnt_12h_by_uid:52, uid_240_1h_distinct_count_pay_orderid:25 } },
+  ];
+
+  /* 命中统计 chips（按规则聚合） */
+  const STAT = [
+    { rule:'1天支付金额大于50000', n:142 }, { rule:'设备黑名单命中', n:98 },
+    { rule:'1小时支付笔数大于30', n:76 }, { rule:'3小时异常IP登录次数大于5', n:31 }, { rule:'开放接口QPS限流', n:12 },
+  ];
+  const chipBox = document.getElementById('stat-chips');
+  STAT.forEach(s => {
+    const b = document.createElement('span');
+    b.className = 'chip';
+    b.innerHTML = `${s.rule} <span class="n">${s.n}</span>`;
+    b.onclick = () => {
+      const on = b.classList.toggle('on');
+      document.querySelectorAll('#stat-chips .chip').forEach(c => { if (c !== b) c.classList.remove('on'); });
+      document.getElementById('clear-filter').style.display = on ? 'inline' : 'none';
+      render(on ? s.rule : '');
+    };
+    chipBox.appendChild(b);
+  });
+  document.getElementById('clear-filter').onclick = () => {
+    document.querySelectorAll('#stat-chips .chip').forEach(c => c.classList.remove('on'));
+    document.getElementById('clear-filter').style.display = 'none';
+    render('');
+  };
+
+  const nodeSel = document.getElementById('f-node');
+  DEMO.nodes.forEach(n => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; nodeSel.appendChild(o); });
+  document.getElementById('f-start').value = '2026-08-27T00:00';
+  document.getElementById('f-end').value = '2026-09-03T23:59';
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  const TYPE_TAG = { 1:'查询请求', 2:'提交请求' };
+  const LEVEL = { pass:['通过','tag-green'], review:['审核','tag-orange'], reject:['拒绝','tag-red'] };
+
+  function hitsCell(hits) {
+    if (!hits.length) return '<span class="muted">-</span>';
+    return hits.map(h => {
+      const [name, path] = h;
+      return `<div class="hit-cell"><span class="hit-name">${esc(name)}</span>
+        <span class="hit-path-btn link" data-path="${esc(path)}" data-rule="${esc(name)}">[路径]</span></div>`;
+    }).join('');
+  }
+
+  function rowHtml(r) {
+    const lv = LEVEL[r.level] || ['-','tag-gray'];
+    return `<tr>
+      <td class="fix c1 mono">${esc(r.reqId)}</td>
+      <td><span class="tag ${r.type === 1 ? 'tag-blue' : 'tag-gray'}">${TYPE_TAG[r.type]}</span></td>
+      <td>${esc(r.account)}</td>
+      <td><span class="tag ${lv[1]}">${r.dec} · ${lv[0]}</span></td>
+      <td class="num">${r.score || 0}</td>
+      <td style="max-width:280px">${hitsCell(r.hits)}</td>
+      <td>${esc(r.scene)}</td>
+      <td class="mono">${esc(r.device)}</td>
+      <td class="mono">${esc(r.ip)}</td>
+      <td>${esc(r.loc)}</td>
+      <td>${esc(r.time)}</td>
+      <td class="fix cR td-actions">
+        <button class="btn-link" data-detail="${ROWS.indexOf(r)}">详情</button>
+        ${r.type !== 1 ? `<a class="btn-link" href="event-log.html" target="_blank">明细</a>` : ''}
+      </td>
+    </tr>`;
+  }
+
+  let curFilter = '';
+  function render(filter) {
+    curFilter = filter || '';
+    const rows = ROWS.filter(r =>
+      (!curFilter || r.hits.some(h => h[0] === curFilter)) );
+    document.getElementById('audit-body').innerHTML = rows.map(r => rowHtml(r)).join('');
+    document.getElementById('total').textContent = '共 ' + rows.length + ' 条数据';
+  }
+
+  /* 详情 */
+  document.addEventListener('click', e => {
+    const d = e.target.closest('[data-detail]');
+    if (d) {
+      const r = ROWS[+d.dataset.detail];
+      document.getElementById('d-title').textContent = '风险详情 - ' + r.reqId;
+      const fKeys = Object.keys(r.fields).filter(k => k.toLowerCase() !== 'eventid');
+      const fBox = document.getElementById('d-fields');
+      fBox.innerHTML = fKeys.length ? fKeys.map(k =>
+        `<div class="kv-block"><div class="k">${esc(FIELD_LABEL[k] || k)}<span class="en">${esc(k)}</span></div><div class="v${k === 'ip' ? ' mono' : ''}">${esc(r.fields[k])}</div></div>`).join('')
+        : '<div class="muted-empty">暂无字段</div>';
+      const mKeys = Object.keys(r.metrics || {});
+      const mBox = document.getElementById('d-metrics');
+      mBox.innerHTML = mKeys.length ? mKeys.map(k =>
+        `<div class="kv-block"><div class="k">${esc(L(k))}<span class="en">${esc(k)}</span></div><div class="v num">${r.metrics[k]}</div></div>`).join('')
+        : '<div class="muted-empty">暂无指标结果</div>';
+      openModal('detail-modal');
+    }
+    const p = e.target.closest('.hit-path-btn');
+    if (p) {
+      document.getElementById('p-body').innerHTML =
+        `<div style="margin-bottom:10px"><span class="tag tag-teal">${esc(p.dataset.rule)}</span></div>
+         <div class="kv-block"><div class="k">决策链路</div><div class="v">${esc(p.dataset.path)}</div></div>
+         <div class="kv-block" style="margin-top:8px"><div class="k">说明</div><div class="v">该条记录在规则评估时命中，命中详情以风控节点内配置的树形结构为准。</div></div>`;
+      openModal('path-modal');
+    }
+  });
+
+  /* 查询（前端过滤模拟） */
+  document.getElementById('q-btn').onclick = () => {
+    const node = nodeSel.value;
+    const s = document.getElementById('f-start').value.replace('T',' ');
+    const e = document.getElementById('f-end').value.replace('T',' ');
+    const rows = ROWS.filter(r =>
+      (!node || r.nodeNo === node) && (!s || r.time >= s) && (!e || r.time <= e));
+    document.querySelectorAll('#stat-chips .chip').forEach(c => c.classList.remove('on'));
+    document.getElementById('clear-filter').style.display = 'none';
+    document.getElementById('audit-body').innerHTML = rows.map(r => rowHtml(r)).join('');
+    document.getElementById('total').textContent = '共 ' + rows.length + ' 条数据';
+  };
+
+  render('');
+})();
+</script>
+</body>
+</html>

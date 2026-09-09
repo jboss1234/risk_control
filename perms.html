@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>权限配置 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.code-mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#0f766e;}.tag-blue{color:#0958d9;background:#e6f4ff}.tag-teal2{color:#0f766e;background:#e2f6f2}.tag-orange{color:#c2580a;background:#fdf1e3}</style>
+</head>
+<body data-page="perms">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <select id="f-grp" style="width:180px"><option value="">全部分组</option></select>
+          <input id="f-kw" placeholder="搜索权限名称 / 权限码" style="width:260px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto"><button class="btn btn-primary" data-open="pm-modal">＋ 新增权限</button></span>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1100px">
+            <thead><tr><th style="width:180px">权限名称</th><th style="width:260px">权限码</th><th style="width:150px">所属分组</th><th style="width:120px">类型</th><th>说明</th><th style="width:140px">操作</th></tr></thead>
+            <tbody id="pm-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="pm-total">共 0 条</span><span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="pm-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3 id="pmm-title">新增权限</h3><button class="btn" data-close="pm-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">权限名称 <b style="color:#d03050">*</b></div><input id="m-name"></div>
+        <div><div class="lab" style="color:#263a35">所属分组</div><select id="m-grp"></select></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">权限码 <b style="color:#d03050">*</b></div><input id="m-code" placeholder="如 rule_edit"></div>
+        <div><div class="lab" style="color:#263a35">类型</div><select id="m-type"><option>菜单</option><option>按钮</option><option>接口</option></select></div>
+        <div><div class="lab" style="color:#263a35">说明</div><input id="m-desc"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="pm-modal">取消</button><button class="btn btn-primary" id="pmm-save">保存</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const GRP = ['实时大屏','事件查询','属性与特征','策略配置','名单与数据','系统管理'];
+  const TYPE_TAG = { 菜单:['tag-teal2'], 按钮:['tag-blue'], 接口:['tag-orange'] };
+  const D = [
+    { name:'大屏查看', code:'dashboard_view', grp:'实时大屏', type:'菜单', desc:'访问实时大屏' },
+    { name:'请求明细查询', code:'event_log_view', grp:'事件查询', type:'菜单', desc:'查询请求明细' },
+    { name:'请求明细导出', code:'event_log_export', grp:'事件查询', type:'按钮', desc:'导出请求明细' },
+    { name:'风险列表查看', code:'audit_view', grp:'事件查询', type:'菜单', desc:'查看风险列表' },
+    { name:'旁路审核', code:'observe_edit', grp:'事件查询', type:'按钮', desc:'通过/拒绝观测记录' },
+    { name:'规则配置', code:'scene_edit', grp:'策略配置', type:'按钮', desc:'新增编辑规则' },
+    { name:'场景查看', code:'scene_view', grp:'策略配置', type:'菜单', desc:'查看场景与规则' },
+    { name:'衍生属性编辑', code:'feature_field_edit', grp:'属性与特征', type:'按钮', desc:'增删改衍生属性' },
+    { name:'名单管理', code:'datalist_edit', grp:'名单与数据', type:'按钮', desc:'增删名单记录' },
+    { name:'用户管理', code:'user_edit', grp:'系统管理', type:'按钮', desc:'增删改用户' },
+    { name:'角色配置', code:'role_edit', grp:'系统管理', type:'按钮', desc:'配置角色权限' },
+    { name:'告警管理', code:'alert_manage', grp:'系统管理', type:'接口', desc:'配置告警规则' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const grpSel = document.getElementById('f-grp'), grpM = document.getElementById('m-grp');
+  GRP.forEach(g => { [grpSel, grpM].forEach(s => { const o = document.createElement('option'); o.value = g; o.textContent = g; s.appendChild(o); }); });
+  function rowHtml(p, i){ return `<tr data-i="${i}"><td style="font-weight:600;color:#17423c">${esc(p.name)}</td><td><span class="code-mono">${esc(p.code)}</span></td><td>${esc(p.grp)}</td><td><span class="tag ${TYPE_TAG[p.type][0]}">${p.type}</span></td><td style="color:#41605b">${esc(p.desc)}</td><td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link danger" data-d="${i}">删除</button></td></tr>`; }
+  function render(list){ document.getElementById('pm-body').innerHTML = list.map(p => rowHtml(p, D.indexOf(p))).join(''); document.getElementById('pm-total').textContent = '共 ' + list.length + ' 条'; }
+  function fullRender(){ render(D); }
+  function apply(){ const kw = document.getElementById('f-kw').value.trim().toLowerCase(), g = grpSel.value;
+    render(D.filter(p => (!g || p.grp === g) && (!kw || p.name.toLowerCase().includes(kw) || p.code.toLowerCase().includes(kw)))); }
+  document.getElementById('q-btn').onclick = apply; document.getElementById('f-kw').addEventListener('input', apply); grpSel.onchange = apply;
+  let _e = -1;
+  function openForm(i){ _e = i; const p = i === -1 ? {} : D[i];
+    document.getElementById('pmm-title').textContent = i === -1 ? '新增权限' : '编辑权限';
+    document.getElementById('m-name').value = p.name||''; document.getElementById('m-grp').value = p.grp||GRP[0];
+    document.getElementById('m-code').value = p.code||''; document.getElementById('m-type').value = p.type||'按钮'; document.getElementById('m-desc').value = p.desc||''; openModal('pm-modal'); }
+  document.querySelector('[data-open="pm-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('pmm-save').onclick = () => { const name = document.getElementById('m-name').value.trim(), code = document.getElementById('m-code').value.trim();
+    if (!name || !code) { alert('名称与权限码必填'); return; }
+    const v = { name, code, grp: document.getElementById('m-grp').value, type: document.getElementById('m-type').value, desc: document.getElementById('m-desc').value.trim() };
+    if (_e === -1) D.push(v); else D[_e] = v; closeModal('pm-modal'); fullRender(); };
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]'); if (del) { const p = D[+del.dataset.d]; if (confirm(`确认删除权限「${p.name}」？`)) { D.splice(+del.dataset.d,1); fullRender(); } } });
+  fullRender();
+})();
+</script>
+</body>
+</html>

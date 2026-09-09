@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>指标数据 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .ana-head { background:#fff; border:1px solid #e2ecea; border-radius:12px; padding:14px 16px; margin-bottom:12px;
+    box-shadow:0 1px 2px rgba(15,94,89,.04),0 2px 10px rgba(15,94,89,.05);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .ana-head .ttl { font-size:16px; font-weight:600; color:#133832; }
+  .ana-head .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:#41605b; }
+  .kv-grid.tight { grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); }
+  .metric-card { background:#fff; border:1px solid #e2ecea; border-radius:12px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,94,89,.04); }
+  .metric-card .m-val { font-size:22px; font-weight:700; color:#0f766e; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .metric-card .m-name { font-size:12px; color:#6a8580; word-break:break-all; }
+  .metric-card .m-name .en { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:#9fb5b1; }
+  .seg-row { display:flex; gap:8px; }
+</style>
+</head>
+<body data-page="event-log">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <a href="event-log.html" class="btn" style="margin-bottom:12px">← 返回请求明细</a>
+
+      <div class="ana-head">
+        <div>
+          <div class="ttl">指标数据</div>
+          <div style="font-size:12px;color:#6a8580;margin-top:2px">请求维度指标查询 · 数据时间 2026-09-03 10:15:22</div>
+        </div>
+        <span style="margin-left:auto"></span>
+        <span class="mono">reqId: 4cf082ba-a73d-11f1-866d-0ffb4f7ff8de</span>
+        <span class="tag tag-teal">交易-手机SDK</span>
+        <span class="tag tag-red" style="color:#d03050;background:#fdeaea">命中规则: 1天支付金额大于50000</span>
+      </div>
+
+      <!-- 基础信息 -->
+      <div class="table-card" style="padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:600;color:#17423c;margin-bottom:10px">基础信息</div>
+        <div class="kv-grid tight">
+          <div class="kv-block"><div class="k">请求ID</div><div class="v mono" style="font-size:12px">4cf082ba-a73d-11f1-866d-0ffb4f7ff8de</div></div>
+          <div class="kv-block"><div class="k">账号</div><div class="v">138****001</div></div>
+          <div class="kv-block"><div class="k">交易金额</div><div class="v">12999.00 元</div></div>
+          <div class="kv-block"><div class="k">风险分数</div><div class="v" style="color:#d03050;font-weight:600">86</div></div>
+          <div class="kv-block"><div class="k">决策码</div><div class="v">REJECT（拒绝）</div></div>
+          <div class="kv-block"><div class="k">IP / 归属地</div><div class="v">171.109.*.* · 广西南宁</div></div>
+        </div>
+      </div>
+
+      <!-- 指标结果 -->
+      <div class="table-card" style="padding:14px 16px">
+        <div style="font-size:14px;font-weight:600;color:#17423c;margin-bottom:4px">指标结果</div>
+        <div style="font-size:12px;color:#9fb5b1;margin-bottom:12px">命中规则依赖的实时指标（由 abstraction 映射为中文名）</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px">
+          <div class="metric-card"><div class="m-name">24小时购买次数(按用户)<div class="en">count_buyerid_24h_uid</div></div><div class="m-val">4<small style="font-size:12px;color:#6a8580;font-weight:400"> 次</small></div></div>
+          <div class="metric-card"><div class="m-name">12小时下单笔数(按用户)<div class="en">order_cnt_12h_by_uid</div></div><div class="m-val">28<small style="font-size:12px;color:#6a8580;font-weight:400"> 笔</small></div></div>
+          <div class="metric-card"><div class="m-name">1小时去重支付单数(按用户)<div class="en">uid_240_1h_distinct_count_pay_orderid</div></div><div class="m-val">19</div></div>
+          <div class="metric-card"><div class="m-name">24小时去重支付单数(按用户)<div class="en">uid_240_24h_distinct_count_pay_orderid</div></div><div class="m-val">4</div></div>
+          <div class="metric-card"><div class="m-name">24小时去重IP数(按用户)<div class="en">uid_240_24h_distinct_count_ip</div></div><div class="m-val">3</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

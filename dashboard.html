@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>实时大屏 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  /* ===== 大盘页专属样式 ===== */
+  .dash-kpis { display: grid; grid-template-columns: repeat(6, minmax(140px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 1200px) { .dash-kpis { grid-template-columns: repeat(3, 1fr); } }
+  .kpi { position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; }
+  .kpi.a-purple::before { background: linear-gradient(90deg, #a78bfa, #7c3aed); }
+  .kpi.a-green::before  { background: linear-gradient(90deg, #34d399, #059669); }
+  .kpi.a-cyan::before   { background: linear-gradient(90deg, #22d3ee, #0891b2); }
+  .kpi.a-red::before    { background: linear-gradient(90deg, #fb7185, #e11d48); }
+  .kpi.a-orange::before { background: linear-gradient(90deg, #fbbf24, #d97706); }
+  .kpi .kpi-top { display: flex; justify-content: space-between; align-items: center; }
+  .kpi .kpi-lab { font-size: 12px; color: #6a8580; }
+  .kpi .kpi-val { font-size: 24px; font-weight: 700; color: #133832; font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .kpi .kpi-val small { font-size: 12px; font-weight: 500; color: #6a8580; margin-left: 3px; }
+  .kpi .kpi-sub { font-size: 12px; color: #6a8580; margin-top: 2px; }
+  .kpi .trend-up { color: #0f8a3d; } .kpi .trend-down { color: #d03050; }
+  .kpi .ico-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* 2×2 面板网格：规则在前 */
+  .dash-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 1120px) { .dash-grid { grid-template-columns: 1fr; } }
+  .dash-grid .panel { min-width: 0; }
+  .panel-head h4 { display: flex; align-items: center; gap: 8px; }
+  .panel-head .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(20,184,166,.06); } }
+  .panel-head .head-right { display: flex; align-items: center; gap: 8px; }
+  .mt-bars { padding: 10px 14px 4px; }
+  .mbars { position: relative; height: 230px; display: flex; align-items: stretch; gap: 3px; }
+  .mcol { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+  .mseg { width: 62%; min-height: 1px; }
+  .mseg.s0 { background: linear-gradient(180deg, #fca5a5, #ef4444); }
+  .mseg.s1 { background: linear-gradient(180deg, #fcd34d, #f59e0b); }
+  .mseg.s2 { background: linear-gradient(180deg, #5eead4, #0d9488); }
+  .mseg.s3 { background: linear-gradient(180deg, #7dd3fc, #0891b2); }
+  .mseg.s4 { background: linear-gradient(180deg, #c7d2fe, #6366f1); }
+  .mseg.single { border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #5eead4, #0f766e); }
+  .mtick-row { display: flex; gap: 3px; padding: 6px 4px 0; }
+  .mtick { flex: 1; text-align: center; font-size: 10px; color: #8aa6a1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .gridlines { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
+  .gridlines i { position: absolute; left: 0; right: 0; border-top: 1px dashed #e7efed; }
+  .gridlines i:nth-child(1) { top: 0; } .gridlines i:nth-child(2) { top: 25%; }
+  .gridlines i:nth-child(3) { top: 50%; } .gridlines i:nth-child(4) { top: 75%; }
+
+  /* 规则命中 Top 排行 */
+  .rank-list { padding: 6px 16px 14px; }
+  .rank-row { display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px dashed #eef3f2; }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-no { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #2dd4bf, #0f766e); flex-shrink: 0; }
+  .rank-no.r2 { background: linear-gradient(135deg, #6ee7b7, #059669); }
+  .rank-no.r3 { background: linear-gradient(135deg, #a7f3d0, #34d399); color: #065f46; }
+  .rank-no.r4, .rank-no.r5 { background: #e2ecea; color: #0f766e; }
+  .rank-name { width: 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #263a35; }
+  .rank-track { flex: 1; height: 8px; border-radius: 99px; background: #eef4f3; overflow: hidden; }
+  .rank-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #2dd4bf, #0d9488); }
+  .rank-fill.observe { background: linear-gradient(90deg, #fcd34d, #f59e0b); }
+  .rank-count { width: 60px; text-align: right; font-weight: 600; color: #133832; font-variant-numeric: tabular-nums; }
+  .rank-count small { font-size: 11px; color: #9fb5b1; font-weight: 400; }
+  .rank-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px 14px; font-size: 12px; color: #41605b; border-top: 1px solid #f2f7f5; }
+  .rank-legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: 0; }
+  .rank-legend b { color: #133832; }
+</style>
+</head>
+<body data-page="dashboard">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <!-- ===== KPI 指标卡 ===== -->
+      <div class="dash-kpis">
+        <div class="kpi a-purple">
+          <div class="kpi-top"><span class="kpi-lab">过去24小时拦截总数</span><span class="ico-dot" style="background:#a78bfa"></span></div>
+          <div class="kpi-val">2.3<span small>万次</span></div>
+          <div class="kpi-sub">较昨日 <span class="trend-up">▲ 6.2%</span></div>
+        </div>
+        <div class="kpi a-green">
+          <div class="kpi-top"><span class="kpi-lab">过去24小时通过总数</span><span class="ico-dot" style="background:#34d399"></span></div>
+          <div class="kpi-val">18.6<span small>万次</span></div>
+          <div class="kpi-sub">较昨日 <span class="trend-down">▼ 1.4%</span></div>
+        </div>
+        <div class="kpi a-cyan">
+          <div class="kpi-top"><span class="kpi-lab">实时通过率</span><span class="ico-dot" style="background:#22d3ee"></span></div>
+          <div class="kpi-val">89.0<small>%</small></div>
+          <div class="kpi-sub">拦截: 23K / 请求: 209K</div>
+        </div>
+        <div class="kpi a-red">
+          <div class="kpi-top"><span class="kpi-lab">过去24小时异常总数</span><span class="ico-dot" style="background:#fb7185"></span></div>
+          <div class="kpi-val">486<small>次</small></div>
+          <div class="kpi-sub">Stage失败: 23 · 限流: 463</div>
+        </div>
+        <div class="kpi a-orange">
+          <div class="kpi-top"><span class="kpi-lab">待审核队列</span><span class="ico-dot" style="background:#fbbf24"></span></div>
+          <div class="kpi-val">1,280<small>笔</small></div>
+          <div class="kpi-sub">最早等待 12 分钟</div>
+        </div>
+        <div class="kpi a-orange">
+          <div class="kpi-top"><span class="kpi-lab">系统 QPS</span><span class="ico-dot" style="background:#fbbf24"></span></div>
+          <div class="kpi-val">3,204<small>qps</small></div>
+          <div class="kpi-sub">引擎延迟: <b style="color:#133832">42</b> ms</div>
+        </div>
+      </div>
+
+      <!-- ===== 趋势面板：2×2 网格，规则在前 ===== -->
+      <div class="dash-grid">
+
+        <!-- 规则命中 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h4><span class="live-dot"></span>规则命中 Top 5</h4>
+            <div class="head-right">
+              <span class="chip on">正式</span><span class="chip">观察</span>
+              <span class="chip">总命中</span>
+              <span class="tool">今日 00:00 - 当前</span>
+            </div>
+          </div>
+          <div class="rank-list">
+            <div class="rank-row">
+              <span class="rank-no">1</span>
+              <span class="rank-name">1天支付金额大于50000</span>
+              <span class="tag tag-green">正式</span>
+              <span class="rank-track"><span class="rank-fill" style="width:100%"></span></span>
+              <span class="rank-count">142<small>次</small></span>
+            </div>
+            <div class="rank-row">
+              <span class="rank-no r2">2</span>
+              <span class="rank-name">设备黑名单命中</span>
+              <span class="tag tag-green">正式</span>
+              <span class="rank-track"><span class="rank-fill" style="width:69%"></span></span>
+              <span class="rank-count">98<small>次</small></span>
+            </div>
+            <div class="rank-row">
+              <span class="rank-no r3">3</span>
+              <span class="rank-name">1小时支付笔数大于30</span>
+              <span class="tag tag-green">正式</span>
+              <span class="rank-track"><span class="rank-fill" style="width:53%"></span></span>
+              <span class="rank-count">76<small>次</small></span>
+            </div>
+            <div class="rank-row">
+              <span class="rank-no r4">4</span>
+              <span class="rank-name">3小时异常IP登录次数大于5</span>
+              <span class="tag tag-orange">观察</span>
+              <span class="rank-track"><span class="rank-fill observe" style="width:22%"></span></span>
+              <span class="rank-count">31<small>次</small></span>
+            </div>
+            <div class="rank-row">
+              <span class="rank-no r5">5</span>
+              <span class="rank-name">开放接口QPS限流</span>
+              <span class="tag tag-orange">观察</span>
+              <span class="rank-track"><span class="rank-fill observe" style="width:8%"></span></span>
+              <span class="rank-count">12<small>次</small></span>
+            </div>
+          </div>
+          <div class="rank-legend">
+            <span><span class="dot" style="background:#0d9488"></span>正式命中 <b>316</b></span>
+            <span><span class="dot" style="background:#f59e0b"></span>观察命中 <b>43</b></span>
+            <span>其他规则(16条) 共 <b>87</b> 次命中</span>
+          </div>
+        </div>
+
+        <!-- 风险 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h4>风险事件分级趋势</h4>
+            <div class="head-right">
+              <span class="chip">拦截趋势</span><span class="chip">风险总量</span><span class="chip on">风险分级</span>
+            </div>
+          </div>
+          <div class="mt-bars">
+            <div class="mbars" data-stacked="risk"></div>
+          </div>
+          <div class="legend" data-legend="risk"></div>
+        </div>
+
+        <!-- 引擎 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h4>引擎 QPS 趋势</h4>
+            <div class="head-right">
+              <span class="chip on">引擎QPS</span><span class="chip">评估延迟</span><span class="chip">通过率</span><span class="chip">评估结果</span>
+            </div>
+          </div>
+          <div class="mt-bars">
+            <div class="mbars" data-single="engine"></div>
+          </div>
+          <div class="legend" data-legend="engine"></div>
+        </div>
+
+        <!-- 查询 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h4>Query 决策分布趋势</h4>
+            <div class="head-right">
+              <span class="chip">Query QPS</span><span class="chip">Query 比率</span><span class="chip on">Query 决策</span><span class="chip">Query 分数</span>
+            </div>
+          </div>
+          <div class="mt-bars">
+            <div class="mbars" data-stacked="query"></div>
+          </div>
+          <div class="legend" data-legend="query"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ===== 大盘柱状图渲染（纯静态演示数据） ===== */
+(function () {
+  const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+  /* 确定性的演示数值：日间/夜间双峰 */
+  function col(base, peak, center, width, seed, h) {
+    const d = Math.min(1, Math.max(0, 1 - Math.abs(h - center) / width));
+    const jitter = ((h * 13 + seed * 7) % 9) - 4;
+    return Math.max(1, Math.round(base + (peak - base) * d * d + jitter));
+  }
+
+  const DATA = {
+    risk: {
+      series: [
+        { name: '拒绝', cls: 's0', vals: HOURS.map(h => col(2, 22, 21, 6, 1, h)) },
+        { name: '审核', cls: 's1', vals: HOURS.map(h => col(2, 16, 15, 8, 2, h)) },
+        { name: '通过', cls: 's2', vals: HOURS.map(h => col(6, 34, 11, 8, 3, h)) },
+      ],
+    },
+    engine: {
+      single: { name: '引擎 QPS', cls: 'single', vals: HOURS.map(h => col(2200, 4300, 11, 8, 5, h) + (h === 20 ? 500 : 0)) },
+    },
+    query: {
+      series: [
+        { name: '无决策', cls: 's0', vals: HOURS.map(h => col(4, 60, 6, 7, 6, h)) },
+        { name: '拒绝', cls: 's1', vals: HOURS.map(h => col(8, 120, 20, 6, 7, h)) },
+        { name: '进审', cls: 's4', vals: HOURS.map(h => col(10, 260, 18, 7, 8, h)) },
+        { name: '通过', cls: 's2', vals: HOURS.map(h => col(320, 980, 12, 9, 9, h)) },
+      ],
+    },
+  };
+
+  function renderStacked(el, key) {
+    const cfg = DATA[key];
+    const n = HOURS.length;
+    const totals = cfg.series[0].vals.map((_, i) => cfg.series.reduce((s, sr) => s + sr.vals[i], 0));
+    const max = Math.max.apply(null, totals);
+    let colHtml = '';
+    for (let i = 0; i < n; i++) {
+      const segs = cfg.series.slice().reverse().map(sr =>
+        `<div class="mseg ${sr.cls}" style="height:${Math.max(1, Math.round(sr.vals[i] / max * 100))}%"></div>`).join('');
+      colHtml += `<div class="mcol">${segs}</div>`;
+    }
+    el.innerHTML = `<div class="gridlines"><i></i><i></i><i></i><i></i></div>` + colHtml;
+    let tickHtml = '';
+    for (let i = 0; i < n; i++) tickHtml += `<div class="mtick">${i % 4 === 0 ? String(i).padStart(2, '0') + ':00' : ''}</div>`;
+    el.parentElement.insertAdjacentHTML('beforeend', `<div class="mtick-row">${tickHtml}</div>`);
+    // 图例
+    const lg = document.querySelector(`[data-legend="${key}"]`);
+    lg.innerHTML = cfg.series.map(s =>
+      `<span><span class="dot" style="background:${colorOf(s.cls)}"></span>${s.name}</span>`).join('')
+      + '<span style="margin-left:auto;color:#9fb5b1">Mongo / Prometheus 按小时聚合 · 共 24 小时</span>';
+  }
+
+  function renderSingle(el, key) {
+    const sr = DATA[key].single;
+    const n = HOURS.length;
+    const max = Math.max.apply(null, sr.vals);
+    let colHtml = '';
+    for (let i = 0; i < n; i++) {
+      const h = Math.max(2, Math.round(sr.vals[i] / max * 100));
+      colHtml += `<div class="mcol"><div class="mseg single" style="height:${h}%"></div></div>`;
+    }
+    el.innerHTML = `<div class="gridlines"><i></i><i></i><i></i><i></i></div>` + colHtml;
+    let tickHtml = '';
+    for (let i = 0; i < n; i++) tickHtml += `<div class="mtick">${i % 4 === 0 ? String(i).padStart(2, '0') + ':00' : ''}</div>`;
+    el.parentElement.insertAdjacentHTML('beforeend', `<div class="mtick-row">${tickHtml}</div>`);
+    const lg = document.querySelector(`[data-legend="${key}"]`);
+    lg.innerHTML = `<span><span class="dot" style="background:#0d9488"></span>${sr.name}</span>`
+      + '<span style="margin-left:auto;color:#9fb5b1">Prometheus 按小时聚合 · 共 24 小时</span>';
+  }
+
+  function colorOf(cls) {
+    return { s0: '#ef4444', s1: '#f59e0b', s2: '#0d9488', s3: '#0891b2', s4: '#6366f1' }[cls];
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.mbars[data-stacked]').forEach(el => renderStacked(el, el.dataset.stacked));
+    document.querySelectorAll('.mbars[data-single]').forEach(el => renderSingle(el, el.dataset.single));
+  });
+})();
+</script>
+</body>
+</html>

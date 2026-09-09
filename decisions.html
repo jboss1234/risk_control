@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>决策码 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .tag-orange { color:#c2580a; background:#fdf1e3; }
+  .tag-red { color:#d03050; background:#fdeaea; }
+  .tag-blue { color:#0958d9; background:#e6f4ff; }
+  .code-mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; background:#f0f7f5; border:1px solid #e2ecea; border-radius:5px; padding:1px 7px; color:#0f766e; }
+  .color-swatch { width:14px;height:14px;border-radius:4px;display:inline-block;vertical-align:-2px;margin-right:6px;border:1px solid rgba(0,0,0,.06); }
+</style>
+</head>
+<body data-page="decisions">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索决策码 / 名称" style="width:240px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" data-open="dc-modal">＋ 新增决策码</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1080px">
+            <thead><tr>
+              <th style="width:150px">决策码</th><th style="width:150px">中文名</th><th style="width:110px">动作</th>
+              <th style="width:100px">风险级别</th><th>说明</th><th style="width:120px">使用策略数</th>
+              <th style="width:90px">状态</th><th style="width:130px">操作</th>
+            </tr></thead>
+            <tbody id="dc-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="dc-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="dc-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head"><h3 id="dcm-title">新增决策码</h3><button class="btn" data-close="dc-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">决策码 <b style="color:#d03050">*</b></div>
+          <input id="m-code" placeholder="如 BLOCK_NEW" style="text-transform:uppercase"></div>
+        <div><div class="lab" style="color:#263a35">中文名 <b style="color:#d03050">*</b></div>
+          <input id="m-cn" placeholder="如 拦截新设备大额"></div>
+        <div><div class="lab" style="color:#263a35">动作类型</div>
+          <select id="m-act"><option value="REJECT">拒绝</option><option value="REVIEW">审核</option><option value="PASS">通过</option></select></div>
+        <div><div class="lab" style="color:#263a35">风险级别</div>
+          <select id="m-lv"><option>高</option><option>中</option><option>低</option></select></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">说明</div>
+          <textarea id="m-desc" rows="3" style="width:100%;height:70px;resize:none"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="dc-modal">取消</button><button class="btn btn-primary" id="dcm-save">保存</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 决策码 · 静态演示数据 ============ */
+(function () {
+  const D = [
+    { code:'REJECT', cn:'拒绝', act:'REJECT', lv:'高', desc:'直接拒绝请求并记录风险', n:4, st:'启用' },
+    { code:'REVIEW', cn:'人工审核', act:'REVIEW', lv:'中', desc:'转人工审核，不直接放行', n:2, st:'启用' },
+    { code:'PASS', cn:'放行通过', act:'PASS', lv:'低', desc:'正常通过，不记录风险', n:1, st:'启用' },
+    { code:'REJ202', cn:'大额拦截', act:'REJECT', lv:'高', desc:'金额超限专用拦截码', n:1, st:'启用' },
+    { code:'RVW308', cn:'设备异常审核', act:'REVIEW', lv:'中', desc:'命中设备黑名单/异常设备转审核', n:1, st:'启用' },
+    { code:'PSG501', cn:'低风险放行', act:'PASS', lv:'低', desc:'低分自动放行', n:0, st:'停用' },
+    { code:'LIMIT_QPS', cn:'接口限流', act:'REJECT', lv:'中', desc:'开放接口超频触发限流', n:1, st:'启用' },
+  ];
+  const ACT_TAG = { REJECT:['拒绝','tag-red'], REVIEW:['审核','tag-orange'], PASS:['通过','tag-green'] };
+  const LV_COLOR = { 高:'#e11d48', 中:'#d97706', 低:'#0f8a3d' };
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  function rowHtml(d, i) {
+    const a = ACT_TAG[d.act];
+    return `<tr data-i="${i}">
+      <td><span class="code-mono">${esc(d.code)}</span></td>
+      <td>${esc(d.cn)}</td>
+      <td><span class="tag ${a[1]}">${a[0]}</span></td>
+      <td><span class="color-swatch" style="background:${LV_COLOR[d.lv]}"></span>${d.lv}</td>
+      <td style="color:#41605b">${esc(d.desc)}</td>
+      <td class="num">${d.n}</td>
+      <td><span class="tag ${d.st === '启用' ? 'tag-green' : 'tag-gray2'}">${d.st}</span></td>
+      <td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link danger" data-d="${i}">删除</button></td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('dc-body').innerHTML = list.map(d => rowHtml(d, D.indexOf(d))).join('');
+    document.getElementById('dc-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function fullRender() { render(D); }
+  document.getElementById('f-kw').addEventListener('input', function () {
+    const kw = this.value.trim().toLowerCase();
+    render(D.filter(d => !kw || d.code.toLowerCase().includes(kw) || d.cn.includes(kw)));
+  });
+  document.getElementById('q-btn').onclick = () => document.getElementById('f-kw').dispatchEvent(new Event('input'));
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('dcm-title').textContent = idx === -1 ? '新增决策码' : '编辑决策码';
+    const d = idx === -1 ? {} : D[idx];
+    document.getElementById('m-code').value = d.code || '';
+    document.getElementById('m-cn').value = d.cn || '';
+    document.getElementById('m-act').value = d.act || 'REJECT';
+    document.getElementById('m-lv').value = d.lv || '中';
+    document.getElementById('m-desc').value = d.desc || '';
+    openModal('dc-modal');
+  }
+  document.querySelector('[data-open="dc-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('dcm-save').onclick = () => {
+    const code = document.getElementById('m-code').value.trim().toUpperCase();
+    const cn = document.getElementById('m-cn').value.trim();
+    if (!code || !cn) { alert('决策码与中文名不能为空'); return; }
+    const v = { code, cn, act: document.getElementById('m-act').value, lv: document.getElementById('m-lv').value,
+      desc: document.getElementById('m-desc').value.trim(), n: 0, st: '启用' };
+    if (_edit === -1) D.push(v); else D[_edit] = v;
+    closeModal('dc-modal'); fullRender();
+  };
+
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) { const d = D[+del.dataset.d]; if (confirm(`确认删除决策码「${d.code}」？`)) { D.splice(+del.dataset.d, 1); fullRender(); } }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

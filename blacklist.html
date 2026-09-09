@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>名单库 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .tag-blue { color:#0958d9; background:#e6f4ff; }
+  .tag-orange { color:#c2580a; background:#fdf1e3; }
+  .type-tab { display:inline-flex; border:1px solid #e2ecea; background:#fff; border-radius:8px; overflow:hidden; }
+  .type-tab span { padding:5px 16px; font-size:13px; color:#41605b; cursor:pointer; border-right:1px solid #e2ecea; }
+  .type-tab span:last-child { border-right:none; }
+  .type-tab span.on { background:#0d9488; color:#fff; }
+  .list-type { width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px; }
+</style>
+</head>
+<body data-page="blacklist">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px;flex-wrap:wrap">
+          <span class="type-tab" id="type-tab">
+            <span class="on" data-t="">全部名单</span><span data-t="account">账号名单</span>
+            <span data-t="device">设备名单</span><span data-t="ip">IP名单</span><span data-t="industry">行业名单</span>
+          </span>
+          <input id="f-kw" placeholder="搜索名单值" style="width:240px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn" id="btn-import">批量导入</button>
+            <button class="btn btn-primary" data-open="bl-modal">＋ 新增名单</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1180px">
+            <thead><tr>
+              <th style="width:140px">名单类型</th><th style="width:250px">名单值</th><th style="width:90px">命中次数</th>
+              <th style="width:160px">生效时间</th><th style="width:160px">失效时间</th><th>添加原因</th>
+              <th style="width:110px">添加人</th><th style="width:90px">状态</th><th style="width:130px">操作</th>
+            </tr></thead>
+            <tbody id="bl-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="bl-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="bl-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-head"><h3 id="blm-title">新增名单</h3><button class="btn" data-close="bl-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">名单类型 <b style="color:#d03050">*</b></div>
+          <select id="m-type"><option value="account">账号名单</option><option value="device">设备名单</option><option value="ip">IP名单</option><option value="industry">行业名单</option></select></div>
+        <div><div class="lab" style="color:#263a35">名单值 <b style="color:#d03050">*</b></div><input id="m-value" placeholder="账号/设备ID/IP"></div>
+        <div><div class="lab" style="color:#263a35">失效时间</div><input id="m-expire" type="datetime-local"></div>
+        <div><div class="lab" style="color:#263a35">生效时间</div><input id="m-effect" type="datetime-local"></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">添加原因</div>
+          <textarea id="m-reason" rows="3" style="width:100%;height:70px;resize:none"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="bl-modal">取消</button><button class="btn btn-primary" id="blm-save">保存</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 名单库 · 静态演示数据 ============ */
+(function () {
+  const TYPES = { account:['账号名单','#0d9488'], device:['设备名单','#7c3aed'], ip:['IP名单','#2563eb'], industry:['行业名单','#d97706'] };
+  const D = [
+    { type:'device', value:'9ab1c88d3f4a', hits:98, effect:'2026-08-20 10:00:00', expire:'2027-08-20 10:00:00', reason:'频繁异常登录', by:'管理员', st:'生效' },
+    { type:'account', value:'13900000508', hits:64, effect:'2026-08-22 09:30:00', expire:'2027-08-22 09:30:00', reason:'盗刷投诉', by:'风控同学A', st:'生效' },
+    { type:'ip', value:'171.109.216.30', hits:152, effect:'2026-08-25 14:20:00', expire:'2026-12-31 00:00:00', reason:'高频异常交易', by:'管理员', st:'生效' },
+    { type:'account', value:'18800000672', hits:22, effect:'2026-09-01 11:00:00', expire:'2026-10-01 11:00:00', reason:'风控进审未申诉', by:'风控同学B', st:'生效' },
+    { type:'device', value:'a8f9c88d3f10', hits:11, effect:'2026-08-01 08:00:00', expire:'2026-09-01 08:00:00', reason:'疑似模拟器', by:'风控同学A', st:'已失效' },
+    { type:'ip', value:'223.104.66.0/24', hits:204, effect:'2026-08-28 10:00:00', expire:'2027-08-28 10:00:00', reason:'代理出口段', by:'管理员', st:'生效' },
+    { type:'industry', value:'黑产交易团伙', hits:0, effect:'2026-09-02 16:00:00', expire:'2027-09-02 16:00:00', reason:'行业共享名单导入', by:'系统', st:'生效' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+  function rowHtml(b, i) {
+    const t = TYPES[b.type];
+    return `<tr data-i="${i}">
+      <td><span class="list-type" style="background:${t[1]}"></span>${t[0]}</td>
+      <td class="mono">${esc(b.value)}</td>
+      <td class="num">${b.hits}</td>
+      <td>${esc(b.effect)}</td>
+      <td>${esc(b.expire)}</td>
+      <td style="color:#41605b">${esc(b.reason)}</td>
+      <td>${esc(b.by)}</td>
+      <td><span class="tag ${b.st === '生效' ? 'tag-green' : 'tag-gray2'}">${b.st}</span></td>
+      <td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link danger" data-d="${i}">删除</button></td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('bl-body').innerHTML = list.map(b => rowHtml(b, D.indexOf(b))).join('');
+    document.getElementById('bl-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function fullRender() { render(D); }
+
+  let curType = '';
+  document.querySelectorAll('#type-tab span').forEach(s => {
+    s.onclick = () => {
+      document.querySelectorAll('#type-tab span').forEach(x => x.classList.remove('on'));
+      s.classList.add('on'); curType = s.dataset.t; apply();
+    };
+  });
+  function apply() {
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    render(D.filter(b => (!curType || b.type === curType) && (!kw || b.value.toLowerCase().includes(kw))));
+  }
+  document.getElementById('q-btn').onclick = apply;
+  document.getElementById('f-kw').addEventListener('input', apply);
+  document.getElementById('btn-import').onclick = () => alert('批量导入（演示）：请上传 CSV 文件，每行 名单类型,名单值,失效时间,原因');
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('blm-title').textContent = idx === -1 ? '新增名单' : '编辑名单';
+    const b = idx === -1 ? {} : D[idx];
+    document.getElementById('m-type').value = b.type || 'account';
+    document.getElementById('m-value').value = b.value || '';
+    document.getElementById('m-effect').value = b.effect ? b.effect.replace(' ', 'T') : '';
+    document.getElementById('m-expire').value = b.expire ? b.expire.replace(' ', 'T') : '';
+    document.getElementById('m-reason').value = b.reason || '';
+    openModal('bl-modal');
+  }
+  document.querySelector('[data-open="bl-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('blm-save').onclick = () => {
+    const value = document.getElementById('m-value').value.trim();
+    if (!value) { alert('名单值不能为空'); return; }
+    const v = { type: document.getElementById('m-type').value, value, hits: 0,
+      effect: (document.getElementById('m-effect').value || '2026-09-03T00:00:00').replace('T', ' '),
+      expire: (document.getElementById('m-expire').value || '2027-09-03T00:00:00').replace('T', ' '),
+      reason: document.getElementById('m-reason').value.trim(), by: '管理员', st: '生效' };
+    if (_edit === -1) D.unshift(v); else D[_edit] = v;
+    closeModal('bl-modal'); fullRender();
+  };
+
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) { const b = D[+del.dataset.d]; if (confirm(`确认删除名单「${b.value}」？`)) { D.splice(+del.dataset.d, 1); fullRender(); } }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>风控规则 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .tag-orange { color:#c2580a; background:#fdf1e3; }
+  .tag-red { color:#d03050; background:#fdeaea; }
+  .feat-code { font-size:12px; background:#f0f7f5; border:1px solid #e2ecea; border-radius:5px; padding:1px 7px; color:#0f766e; }
+  .cond-tree { border:1px solid #e7efed; border-radius:8px; padding:12px 14px; background:#fafdfc; }
+  .grp { margin-bottom:10px; }
+  .grp:last-child { margin-bottom:0; }
+  .grp-head { display:flex; align-items:center; gap:8px; font-size:12px; color:#6a8580; margin-bottom:6px; }
+  .logic { display:inline-flex; align-items:center; gap:4px; background:#e2f6f2; color:#0f766e; font-size:11px; border-radius:4px; padding:1px 6px; }
+  .cond-line { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e7efed; border-radius:6px;
+    padding:4px 10px; margin:4px 0; font-size:12px; color:#263a35; flex-wrap:wrap; }
+  .op-sep { color:#c4d4d0; font-size:11px; }
+  .cond-f { color:#0d9488; font-weight:600; }
+  .cond-op { color:#7a8f8b; }
+  .cond-v { font-family:ui-monospace,Menlo,Consolas,monospace; background:#f4f7f6; border-radius:4px; padding:0 6px; color:#1f4e47; }
+  .dec-box { margin-top:12px; display:flex; align-items:center; gap:8px; }
+</style>
+</head>
+<body data-page="rules">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <div class="filter-item" style="flex-direction:row;align-items:center"><span class="lab">所属节点</span>
+            <select id="f-node" style="width:190px"><option value="">全部</option></select></div>
+          <div class="filter-item" style="flex-direction:row;align-items:center"><span class="lab">所属场景</span>
+            <select id="f-scene" style="width:170px"><option value="">全部场景</option></select></div>
+          <input id="f-kw" placeholder="搜索规则名称 / ID" style="width:230px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary" data-open="rl-modal">＋ 新增规则</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1500px">
+            <thead><tr>
+              <th style="width:200px">规则名称</th><th style="width:130px">规则ID</th><th style="width:90px">版本</th>
+              <th style="width:170px">所属策略</th><th style="width:150px">所属场景</th><th style="width:230px">命中条件</th>
+              <th style="width:110px">决策动作</th><th style="width:100px">命中次数</th><th style="width:90px">状态</th>
+              <th style="width:160px">最近更新时间</th><th style="width:230px">操作</th>
+            </tr></thead>
+            <tbody id="rl-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="rl-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 查看（只读）弹窗 -->
+<div class="modal-mask" id="view-modal">
+  <div class="modal" style="max-width:920px">
+    <div class="modal-head"><h3 id="vw-title">规则详情</h3><button class="btn" data-close="view-modal">×</button></div>
+    <div class="modal-body" id="vw-body"></div>
+    <div class="modal-foot"><button class="btn btn-primary" data-close="view-modal">关闭</button></div>
+  </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal-mask" id="rl-modal">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-head"><h3 id="rlm-title">新增规则</h3><button class="btn" data-close="rl-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">规则名称 <b style="color:#d03050">*</b></div><input id="m-name"></div>
+        <div><div class="lab" style="color:#263a35">所属策略</div><select id="m-strategy"></select></div>
+        <div><div class="lab" style="color:#263a35">优先级</div><select id="m-pri">
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+          <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+        </select></div>
+        <div><div class="lab" style="color:#263a35">决策动作</div>
+          <select id="m-dec"><option value="REJECT">拒绝 (REJECT)</option><option value="REVIEW">审核 (REVIEW)</option><option value="PASS">通过 (PASS)</option></select></div>
+        <div><div class="lab" style="color:#263a35">状态</div><select id="m-st"><option>启用</option><option>停用</option></select></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">命中条件（每行一条，支持 与/或 前缀）</div>
+          <textarea id="m-cond" rows="5" style="width:100%;resize:none;height:110px"
+            placeholder="示例：&#10;OR 交易金额 &gt; 50000&#10;AND 1小时支付笔数 &gt;= 30&#10;AND 设备是否黑名单 = true"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="rl-modal">取消</button><button class="btn btn-primary" id="rlm-save">保存</button></div>
+  </div>
+</div>
+
+<!-- 历史版本弹窗 -->
+<div class="modal-mask" id="hist-modal">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-head"><h3>规则版本历史</h3><button class="btn" data-close="hist-modal">×</button></div>
+    <div class="modal-body">
+      <div style="margin-bottom:10px;font-size:12px;color:#9fb5b1" id="hist-name"></div>
+      <table class="grid" id="hist-tbl">
+        <thead><tr><th style="width:110px">版本</th><th>变更说明</th><th style="width:150px">发布人</th><th style="width:160px">发布时间</th><th style="width:130px">操作</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" data-close="hist-modal">关闭</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 风控规则 · 静态演示数据 ============ */
+(function () {
+  const RULES = [
+    { name:'1天支付金额大于50000', id:'R_A713', ver:'v1.2.0', strategy:'交易金额策略', scene:'手机端交易风控', node:'TRANSACTION_PHONE_SDK', pri:1, dec:'REJECT', hits:1150, st:'启用', time:'2026-09-02 18:20:01',
+      cond:[{ logic:'满足以下所有条件', items:[['交易金额','>','50000'],[ '1天支付金额(衍生特征)','>=','50000']]}] },
+    { name:'1小时支付笔数大于30', id:'R_A728', ver:'v1.1.0', strategy:'支付频次策略', scene:'手机端交易风控', node:'TRANSACTION_PHONE_SDK', pri:2, dec:'REVIEW', hits:698, st:'启用', time:'2026-09-01 15:44:20',
+      cond:[{ logic:'满足以下所有条件', items:[['1小时支付笔数(衍生特征)','>=','30']]}] },
+    { name:'单笔金额大于50000', id:'R_A702', ver:'v1.0.0', strategy:'交易金额策略', scene:'手机端交易风控', node:'TRANSACTION_PHONE_SDK', pri:1, dec:'REJECT', hits:270, st:'启用', time:'2026-08-28 09:02:37',
+      cond:[{ logic:'满足以下所有条件', items:[['交易金额','>','50000']]}] },
+    { name:'设备黑名单命中', id:'R_L110', ver:'v1.0.0', strategy:'登录设备策略', scene:'登录风控', node:'LOGIN_WEB', pri:1, dec:'REJECT', hits:512, st:'启用', time:'2026-08-25 11:20:45',
+      cond:[{ logic:'满足以下任意条件', items:[['设备ID','命中黑名单','名单:设备黑名单'],['账号','命中黑名单','名单:账号黑名单']]}] },
+    { name:'3小时异常IP登录次数大于5', id:'R_L121', ver:'v1.1.0', strategy:'异常IP登录策略', scene:'登录风控', node:'LOGIN_WEB', pri:2, dec:'REVIEW', hits:231, st:'启用', time:'2026-08-26 09:44:12',
+      cond:[{ logic:'满足以下所有条件', items:[['3小时异常IP登录次数(衍生特征)','>','5']]}] },
+    { name:'开放接口QPS限流', id:'R_P980', ver:'v1.0.0', strategy:'接口频控策略', scene:'开放接口限流', node:'LOGIN_API', pri:1, dec:'REJECT', hits:189, st:'启用', time:'2026-08-12 10:02:08',
+      cond:[{ logic:'满足以下所有条件', items:[['1分钟接口调用频次(衍生特征)','>=','120']]}] },
+    { name:'支付设备黑名单', id:'R_P610', ver:'v1.3.0', strategy:'登录设备策略', scene:'支付风控', node:'PAY_ANDROID_SDK', pri:1, dec:'REJECT', hits:341, st:'启用', time:'2026-09-03 10:06:41',
+      cond:[{ logic:'满足以下任意条件', items:[['设备是否黑名单','=','true'],['设备ID','命中黑名单','名单:设备黑名单']]}] },
+    { name:'交易风险观察(旁路)', id:'R_T009', ver:'v1.0.0', strategy:'交易金额策略', scene:'交易风险监控', node:'BYPAAS_TRADE', pri:9, dec:'REVIEW', hits:0, st:'停用', time:'2026-08-30 16:30:09',
+      cond:[{ logic:'满足以下所有条件', items:[['交易金额','>','10000']]}] },
+  ];
+  const STRATEGIES = ['交易金额策略','支付频次策略','登录设备策略','异常IP登录策略','接口频控策略','支付频次策略'];
+  const SCENES = ['手机端交易风控','登录风控','开放接口限流','支付风控','交易风险监控'];
+  const DEC_TAG = { REJECT:['拒绝','tag-red'], REVIEW:['审核','tag-orange'], PASS:['通过','tag-green'] };
+  const HITS_SAMPLE = { 'R_A713': {v:'v1.1.0',t:'2026-08-30 10:12:00',n:'金额阈值 30000 → 50000',p:'风控同学A'},
+    'R_A728': {v:'v1.0.0',t:'2026-08-21 09:00:00',n:'首次发布',p:'管理员'} };
+
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const nodes = document.getElementById('f-node');
+  const scenesSel = document.getElementById('f-scene');
+  DEMO.nodes.forEach(n => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; nodes.appendChild(o); });
+  SCENES.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; scenesSel.appendChild(o); });
+  const stgM = document.getElementById('m-strategy');
+  STRATEGIES.forEach((s, i) => { if (STRATEGIES.indexOf(s) === i) { const o = document.createElement('option'); o.value = s; o.textContent = s; stgM.appendChild(o); } });
+  const sceneOf = node => ((DEMO.nodes.find(x => x.nodeNo === node) || {}).nodeName) || node;
+
+  function condSummary(c) {
+    const flat = [];
+    c.forEach(g => g.items.forEach(it => flat.push(it)));
+    return flat.length ? flat.map(it => `${it[0]} ${it[1]} ${it[2]}`).join(' 且 ') : '无条件';
+  }
+
+  function rowHtml(r, i) {
+    const d = DEC_TAG[r.dec];
+    return `<tr data-i="${i}">
+      <td><div style="font-weight:600;color:#17423c">${esc(r.name)}</div></td>
+      <td class="mono" style="font-size:12px">${r.id}</td>
+      <td><span class="feat-code">${r.ver}</span></td>
+      <td>${esc(r.strategy)}</td>
+      <td>${esc(r.scene)}<div class="row-note" style="font-size:11px;color:#9fb5b1">${sceneOf(r.node)}</div></td>
+      <td style="font-size:12px;color:#41605b">${esc(condSummary(r.cond))}</td>
+      <td><span class="tag ${d[1]}">${r.dec} · ${d[0]}</span></td>
+      <td class="num">${r.hits.toLocaleString()}</td>
+      <td><span class="tag ${r.st === '启用' ? 'tag-green' : 'tag-gray2'}">${r.st}</span></td>
+      <td>${esc(r.time)}</td>
+      <td class="td-actions">
+        <button class="btn-link" data-vw="${i}">查看</button>
+        <button class="btn-link" data-edit="${i}">编辑</button>
+        <button class="btn-link" data-hist="${i}">历史</button>
+        <button class="btn-link danger" data-del="${i}">删除</button>
+      </td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('rl-body').innerHTML = list.map(r => rowHtml(r, RULES.indexOf(r))).join('');
+    document.getElementById('rl-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function fullRender() { render(RULES); }
+  function applyFilter() {
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    const nd = nodes.value;
+    const sc = scenesSel.value;
+    render(RULES.filter(r => (!nd || r.node === nd) && (!sc || r.scene === sc) &&
+      (!kw || r.name.toLowerCase().includes(kw) || r.id.toLowerCase().includes(kw))));
+  }
+  document.getElementById('q-btn').onclick = applyFilter;
+  document.getElementById('f-kw').addEventListener('input', applyFilter);
+  nodes.onchange = applyFilter;
+  scenesSel.onchange = applyFilter;
+
+  function condTreeHtml(c) {
+    return c.map(g => `
+      <div class="grp">
+        <div class="grp-head"><span class="logic">${g.logic === '满足以下所有条件' ? '所有(AND)' : '任意(OR)'}</span>${g.logic}</div>
+        ${g.items.map(it => `<div class="cond-line">
+          <span class="cond-f">${esc(it[0])}</span><span class="cond-op">${esc(it[1])}</span>
+          <span class="cond-v">${esc(it[2])}</span></div>`).join('')}
+      </div>`).join('');
+  }
+
+  function showView(idx) {
+    const r = RULES[idx];
+    const d = DEC_TAG[r.dec];
+    document.getElementById('vw-title').textContent = '规则详情 - ' + r.name;
+    document.getElementById('vw-body').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+        <div class="kv-block"><div class="k">规则ID</div><div class="v mono" style="font-size:12px">${r.id}</div></div>
+        <div class="kv-block"><div class="k">版本</div><div class="v"><span class="feat-code">${r.ver}</span></div></div>
+        <div class="kv-block"><div class="k">优先级</div><div class="v">${r.pri}</div></div>
+        <div class="kv-block"><div class="k">所属策略</div><div class="v">${esc(r.strategy)}</div></div>
+        <div class="kv-block"><div class="k">所属场景 / 节点</div><div class="v">${esc(r.scene)} · ${sceneOf(r.node)}</div></div>
+        <div class="kv-block"><div class="k">状态</div><div class="v"><span class="tag ${r.st === '启用' ? 'tag-green' : 'tag-gray2'}">${r.st}</span></div></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:#17423c;margin-bottom:8px">命中条件（只读）</div>
+      <div class="cond-tree">${condTreeHtml(r.cond)}</div>
+      <div class="dec-box">
+        <span style="font-size:13px;font-weight:600;color:#17423c">命中后动作：</span>
+        <span class="tag ${d[1]}" style="font-size:13px">${r.dec} · ${d[0]}</span>
+        <span class="tag tag-gray" style="font-size:12px">决策码 ${r.dec === 'REJECT' ? 'REJ202' : r.dec === 'REVIEW' ? 'RVW308' : 'PSG501'}</span>
+      </div>`;
+    openModal('view-modal');
+  }
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('rlm-title').textContent = idx === -1 ? '新增规则' : '编辑规则';
+    const r = idx === -1 ? {} : RULES[idx];
+    document.getElementById('m-name').value = r.name || '';
+    document.getElementById('m-strategy').value = r.strategy || STRATEGIES[0];
+    document.getElementById('m-pri').value = r.pri || 1;
+    document.getElementById('m-dec').value = r.dec || 'REJECT';
+    document.getElementById('m-st').value = r.st || '启用';
+    document.getElementById('m-cond').value = idx === -1 ? '' :
+      r.cond.map(g => g.items.map((it, j) => `${g.logic === '满足以下任意条件' && j === 0 ? '' : g.logic === '满足以下任意条件' ? 'OR ' : 'AND '}${it[0]} ${it[1]} ${it[2]}`).join('\n')).join('\n');
+    openModal('rl-modal');
+  }
+  document.querySelector('[data-open="rl-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('rlm-save').onclick = () => {
+    const name = document.getElementById('m-name').value.trim();
+    if (!name) { alert('规则名称不能为空'); return; }
+    const lines = document.getElementById('m-cond').value.split('\n').map(s => s.trim()).filter(Boolean);
+    const cond = lines.length ? [{ logic:'满足以下所有条件', items: lines.map(l => {
+        const m = l.replace(/^(AND|OR)\s+/i, ''); const ops = m.split(/\s+/);
+        return ops.length >= 3 ? [ops.slice(0, -2).join(' '), ops[ops.length - 2], ops[ops.length - 1]] : [m, '=', 'true'];
+      }) }] : [];
+    const v = { name, id: 'R_N' + Math.floor(100 + Math.random() * 899), ver: 'v1.0.0',
+      strategy: document.getElementById('m-strategy').value, scene: sceneOf(document.getElementById('m-strategy').value) ? RULES.find(x=>x.strategy===document.getElementById('m-strategy').value)?.scene || '手机端交易风控' : '手机端交易风控',
+      node: RULES.find(x => x.strategy === document.getElementById('m-strategy').value)?.node || 'TRANSACTION_PHONE_SDK',
+      pri: +document.getElementById('m-pri').value, dec: document.getElementById('m-dec').value, hits: 0,
+      st: document.getElementById('m-st').value, time: '2026-09-03 16:40:00', cond };
+    if (_edit === -1) RULES.unshift(v); else RULES[_edit] = v;
+    closeModal('rl-modal'); fullRender();
+  };
+
+  function showHist(idx) {
+    const r = RULES[idx];
+    document.getElementById('hist-name').textContent = `${r.name}（当前 ${r.ver}）`;
+    const extra = HITS_SAMPLE[r.id];
+    const rows = extra ? [
+      { v: r.ver, t: r.time, n: extra.n, p: extra.p, cur: true },
+      { v: extra.v, t: extra.t, n: '调整阈值与兜底', p: '管理员', cur: false },
+    ] : [{ v: r.ver, t: r.time, n: '首次发布', p: '管理员', cur: true }];
+    document.querySelector('#hist-tbl tbody').innerHTML = rows.map(h => `<tr>
+      <td><span class="feat-code">${h.v}</span></td><td>${h.n}</td><td>${h.p}</td><td>${h.t}</td>
+      <td>${h.cur ? '<span class="tag tag-teal">当前版本</span>' : `<button class="btn-link" data-restore="${idx}">恢复此版本</button>`}</td></tr>`).join('');
+    openModal('hist-modal');
+  }
+
+  document.addEventListener('click', e => {
+    const vw = e.target.closest('[data-vw]'); if (vw) { showView(+vw.dataset.vw); return; }
+    const ed = e.target.closest('[data-edit]'); if (ed) { openForm(+ed.dataset.edit); return; }
+    const ht = e.target.closest('[data-hist]'); if (ht) { showHist(+ht.dataset.hist); return; }
+    const rs = e.target.closest('[data-restore]');
+    if (rs) { const r = RULES[+rs.dataset.restore]; if (confirm(`确认将规则「${r.name}」恢复到该版本？`)) { r.time = '2026-09-03 16:40:00'; r.ver = r.ver === 'v1.2.0' ? 'v1.1.0' : 'v1.0.0'; closeModal('hist-modal'); fullRender(); } return; }
+    const del = e.target.closest('[data-del]');
+    if (del) { const r = RULES[+del.dataset.del]; if (confirm(`确认删除规则「${r.name}」？`)) { RULES.splice(+del.dataset.del, 1); fullRender(); } }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

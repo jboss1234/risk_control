@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>告警管理 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>.tag-green{color:#0f8a3d;background:#e7f8ee}.tag-gray2{color:#5b7470;background:#eef2f1}.tag-red{color:#d03050;background:#fdeaea}.tag-orange{color:#c2580a;background:#fdf1e3}.tag-teal{color:#0f766e;background:#e2f6f2}.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}.chk-row{display:flex;gap:16px;flex-wrap:wrap}</style>
+</head>
+<body data-page="alerts">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi"><div class="kpi-lab">告警规则</div><div class="kpi-val" id="kpi-total">0<small>条</small></div></div>
+        <div class="kpi"><div class="kpi-lab">启用中</div><div class="kpi-val" id="kpi-on">0<small>条</small></div></div>
+        <div class="kpi"><div class="kpi-lab">今日已触发</div><div class="kpi-val">12<small>次</small></div></div>
+        <div class="kpi"><div class="kpi-lab">未恢复(P0/P1)</div><div class="kpi-val" style="color:#d03050">1<small>条</small></div></div>
+      </div>
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <input id="f-kw" placeholder="搜索 规则名称 / 监控对象" style="width:240px">
+          <select id="f-lv" style="width:130px">
+            <option value="">全部级别</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option>
+          </select>
+          <select id="f-st" style="width:120px">
+            <option value="">全部状态</option><option>启用</option><option>停用</option>
+          </select>
+          <button class="btn btn-primary" id="q-btn">查询</button>
+          <span style="margin-left:auto"><button class="btn btn-primary" data-open="al-modal">＋ 新建告警规则</button></span>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1320px">
+            <thead><tr>
+              <th style="width:200px">规则名称</th><th style="width:150px">监控对象</th><th style="width:70px">级别</th>
+              <th>触发条件</th><th style="width:170px">通知渠道</th><th style="width:140px">接收人</th><th style="width:80px">状态</th>
+              <th style="width:170px">最近触发</th><th style="width:200px">操作</th>
+            </tr></thead>
+            <tbody id="al-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot"><span id="al-total">共 0 条</span><span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-mask" id="al-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-head"><h3 id="alm-title">新建告警规则</h3><button class="btn" data-close="al-modal">×</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">规则名称 <b style="color:#d03050">*</b></div><input id="m-name" style="width:100%"></div>
+        <div><div class="lab" style="color:#263a35">监控对象</div><select id="m-obj" style="width:100%">
+          <option>请求量指标</option><option>风险命中率</option><option>决策耗时</option><option>计算组积压</option><option>名单导入任务</option><option>集群节点心跳</option><option>同步任务延迟</option>
+        </select></div>
+        <div><div class="lab" style="color:#263a35">告警级别</div><select id="m-lv" style="width:100%">
+          <option>P0 紧急</option><option>P1 重要</option><option>P2 一般</option><option>P3 提示</option>
+        </select></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">触发条件</div><input id="m-cond" placeholder="如：P95 耗时 &gt; 800ms 持续 3 分钟" style="width:100%"></div>
+        <div style="grid-column:1/3">
+          <div class="lab" style="color:#263a35">通知渠道</div>
+          <div class="chk-row">
+            <label><input type="checkbox" id="m-ch-mail" checked> 邮件</label>
+            <label><input type="checkbox" id="m-ch-sms" checked> 短信</label>
+            <label><input type="checkbox" id="m-ch-ding"> 钉钉</label>
+            <label><input type="checkbox" id="m-ch-phone"> 电话</label>
+          </div>
+        </div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">接收人</div><input id="m-recv" placeholder="多个以顿号分隔，如：张风控、李同学" style="width:100%"></div>
+        <div><div class="lab" style="color:#263a35">状态</div><select id="m-st" style="width:100%"><option>启用</option><option>停用</option></select></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="al-modal">取消</button><button class="btn btn-primary" id="alm-save">保存</button></div>
+  </div>
+</div>
+<script src="assets/data.js"></script><script src="assets/app.js"></script>
+<script>
+(function () {
+  const D = [
+    { name:'决策超时告警', obj:'决策耗时', lv:'P0', cond:'P95 耗时 &gt; 800ms 持续 3 分钟', ch:'电话 / 短信 / 钉钉', recv:'值班组(张风控、李同学)', st:'启用', last:'2026-09-03 15:58:20' },
+    { name:'节点心跳丢失', obj:'集群节点心跳', lv:'P0', cond:'节点离线 &gt; 60s', ch:'电话 / 钉钉', recv:'集群管理员(ops_zhang)', st:'启用', last:'2026-09-03 14:55:12' },
+    { name:'请求量突增', obj:'请求量指标', lv:'P1', cond:'5 分钟环比 +300%', ch:'钉钉 / 短信', recv:'张风控、李同学', st:'启用', last:'2026-09-03 12:20:44' },
+    { name:'风险命中率骤降', obj:'风险命中率', lv:'P1', cond:'命中率较基线下降 50% 持续 10 分钟', ch:'钉钉 / 邮件', recv:'张风控', st:'启用', last:'2026-09-03 11:02:05' },
+    { name:'计算组消息积压', obj:'计算组积压', lv:'P2', cond:'Lag &gt; 5 万持续 10 分钟', ch:'钉钉', recv:'实时计算组', st:'启用', last:'2026-09-02 18:30:00' },
+    { name:'同步任务延迟', obj:'同步任务延迟', lv:'P2', cond:'同步延迟 &gt; 60s 持续 5 分钟', ch:'邮件 / 短信', recv:'王名单、ops_zhang', st:'启用', last:'2026-09-02 10:12:40' },
+    { name:'名单导入失败', obj:'名单导入任务', lv:'P2', cond:'批次失败率 &gt; 30%', ch:'邮件', recv:'名单管理员(王名单)', st:'停用', last:'2026-08-28 16:00:00' },
+    { name:'全量回放延迟提示', obj:'旁路回放', lv:'P3', cond:'回放进度落后 &gt; 2 小时', ch:'邮件', recv:'风控查看组', st:'启用', last:'2026-09-01 09:00:00' },
+  ];
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const LV_CLS = { 'P0':'tag-red', 'P1':'tag-orange', 'P2':'tag-teal', 'P3':'tag-gray2' };
+  function rowHtml(a, i) { return `<tr><td style="font-weight:600;color:#17423c">${esc(a.name)}</td><td style="color:#5b7470">${esc(a.obj)}</td><td><span class="tag ${LV_CLS[a.lv]}">${a.lv}</span></td><td style="color:#41605b">${esc(a.cond)}</td><td>${esc(a.ch)}</td><td>${esc(a.recv)}</td><td><span class="tag ${a.st==='启用'?'tag-green':'tag-gray2'}">${a.st}</span></td><td class="num" style="color:#5b7470">${esc(a.last)}</td><td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button><button class="btn-link" data-tg="${i}">${a.st==='启用'?'停用':'启用'}</button><button class="btn-link" data-tst="${i}">测试</button><button class="btn-link danger" data-del="${i}">删除</button></td></tr>`; }
+  function render(list){ document.getElementById('al-body').innerHTML = list.map((a,i) => rowHtml(a, D.indexOf(a))).join(''); document.getElementById('al-total').textContent = '共 ' + list.length + ' 条'; document.getElementById('kpi-total').textContent = D.length; document.getElementById('kpi-on').textContent = D.filter(a => a.st === '启用').length; }
+  function fullRender(){
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    const lv = document.getElementById('f-lv').value;
+    const st = document.getElementById('f-st').value;
+    render(D.filter(a => (!kw || a.name.toLowerCase().includes(kw) || a.obj.toLowerCase().includes(kw)) && (!lv || a.lv === lv) && (!st || a.st === st)));
+  }
+  let _e = -1;
+  function openForm(i){ _e = i; const a = i === -1 ? {} : D[i];
+    document.getElementById('alm-title').textContent = i === -1 ? '新建告警规则' : '编辑告警规则';
+    document.getElementById('m-name').value = a.name || '';
+    document.getElementById('m-obj').value = a.obj || '请求量指标';
+    document.getElementById('m-lv').value = (a.lv || 'P2') + ' ' + ({'P0':'紧急','P1':'重要','P2':'一般','P3':'提示'})[a.lv || 'P2'];
+    document.getElementById('m-cond').value = (a.cond || '').replace(/&gt;/g, '>');
+    const ch = a.ch || '邮件 / 短信';
+    document.getElementById('m-ch-mail').checked = ch.includes('邮件');
+    document.getElementById('m-ch-sms').checked = ch.includes('短信');
+    document.getElementById('m-ch-ding').checked = ch.includes('钉钉');
+    document.getElementById('m-ch-phone').checked = ch.includes('电话');
+    document.getElementById('m-recv').value = a.recv || '';
+    document.getElementById('m-st').value = a.st || '启用';
+    openModal('al-modal'); }
+  function chText(){ const t = []; if (document.getElementById('m-ch-mail').checked) t.push('邮件'); if (document.getElementById('m-ch-sms').checked) t.push('短信'); if (document.getElementById('m-ch-ding').checked) t.push('钉钉'); if (document.getElementById('m-ch-phone').checked) t.push('电话'); return t.join(' / ') || '—'; }
+  document.querySelector('[data-open="al-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('alm-save').onclick = () => { const name = document.getElementById('m-name').value.trim();
+    if (!name) { alert('规则名称必填'); return; }
+    const v = { name, obj: document.getElementById('m-obj').value, lv: document.getElementById('m-lv').value.split(' ')[0], cond: document.getElementById('m-cond').value.trim(), ch: chText(), recv: document.getElementById('m-recv').value.trim() || '-', st: document.getElementById('m-st').value, last: '—' };
+    if (_e === -1) D.push(v); else D[_e] = v; closeModal('al-modal'); fullRender(); };
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const tg = e.target.closest('[data-tg]'); if (tg) { const a = D[+tg.dataset.tg]; a.st = a.st === '启用' ? '停用' : '启用'; fullRender(); return; }
+    const ts = e.target.closest('[data-tst]'); if (ts) { const a = D[+ts.dataset.tst]; alert(`已向 ${a.recv} 发送测试通知（渠道：${a.ch}）（演示）`); return; }
+    const del = e.target.closest('[data-del]'); if (del) { const a = D[+del.dataset.del]; if (confirm(`确认删除告警规则「${a.name}」？`)) { D.splice(+del.dataset.del,1); fullRender(); } } });
+  document.getElementById('f-kw').addEventListener('input', fullRender);
+  document.getElementById('f-lv').addEventListener('change', fullRender);
+  document.getElementById('f-st').addEventListener('change', fullRender);
+  document.getElementById('q-btn').onclick = fullRender;
+  fullRender();
+})();
+</script>
+</body>
+</html>

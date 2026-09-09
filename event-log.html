@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>请求明细 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  /* 固定列（请求ID / 风控节点 / 账号ID / 操作） */
+  #log-grid th.fix, #log-grid td.fix { position: sticky; background: #fff; }
+  #log-grid thead th.fix { z-index: 3; }
+  #log-grid td.fix, #log-grid th.fix { z-index: 2; }
+  #log-grid .c1 { left: 0; min-width: 220px; }  #log-grid th.c1 { width: 220px; }
+  #log-grid .c2 { left: 220px; min-width: 150px; } #log-grid th.c2 { width: 150px; }
+  #log-grid .c3 { left: 370px; min-width: 130px; } #log-grid th.c3 { width: 130px; }
+  #log-grid .cR { right: 0; min-width: 150px; } #log-grid th.cR { width: 150px; box-shadow: -6px 0 12px -12px rgba(10,50,46,.4); }
+  #log-grid tbody tr:nth-child(even) td.fix { background: #f9fcfa; }
+  #log-grid tbody tr:hover td.fix { background: #eefaf7; }
+  #log-grid tbody td.score-hit { color: #ff4d4f; font-weight: 600; }
+  .masked-row .link { font-size: 12px; }
+  .mask-val { font-variant-numeric: tabular-nums; }
+  .plain { display: none; }
+  .revealed .mask-val { display: none; }
+  .revealed .plain { display: inline; }
+  .d-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .d-table th { text-align: left; background: #f7fbfa; color: #17423c; font-weight: 600; padding: 8px 12px; border-bottom: 1px solid #d7e5e1; }
+  .d-table td { padding: 8px 12px; border-bottom: 1px solid #eef3f2; vertical-align: middle; word-break: break-all; }
+  .d-table .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .req-chip { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid #e2ecea; border-radius:8px; padding:6px 12px; margin-bottom:12px; font-size:12px; color:#41605b; box-shadow:0 1px 2px rgba(15,94,89,.04);}
+  .req-chip .mono { font-family: ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body data-page="event-log">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <!-- 筛选区 -->
+      <div class="filter-card">
+        <div class="filter-row">
+          <div class="filter-item">
+            <span class="lab">风控节点</span>
+            <select id="f-node" style="width:200px">
+              <option value="">全部节点</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <span class="lab">开始时间</span>
+            <input id="f-start" type="datetime-local" style="width:210px">
+          </div>
+          <div class="filter-item">
+            <span class="lab">结束时间</span>
+            <input id="f-end" type="datetime-local" style="width:210px">
+          </div>
+          <div class="filter-item">
+            <span class="lab">账号ID</span>
+            <input id="f-account" placeholder="请输入账号ID" style="width:170px">
+          </div>
+          <div class="filter-item">
+            <span class="lab">IP地址</span>
+            <input id="f-ip" placeholder="请输入IP地址" style="width:170px">
+          </div>
+          <div class="filter-item">
+            <span class="lab">最小分数</span>
+            <input id="f-min" type="number" min="0" placeholder="0" style="width:120px">
+          </div>
+          <div class="filter-item">
+            <span class="lab">最大分数</span>
+            <input id="f-max" type="number" min="0" placeholder="100" style="width:120px">
+          </div>
+          <div class="filter-item" style="align-self:flex-end">
+            <button class="btn btn-primary" id="q-btn">查询</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 表格 -->
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" id="log-grid" style="min-width:1720px">
+            <thead>
+              <tr>
+                <th class="fix c1">请求ID</th>
+                <th class="fix c2">风控节点</th>
+                <th class="fix c3">账号ID</th>
+                <th>游戏 ID</th>
+                <th>IP地址</th>
+                <th>IP 归属地</th>
+                <th>分数</th>
+                <th>事件时间</th>
+                <th>创建时间</th>
+                <th class="fix cR">操作</th>
+              </tr>
+            </thead>
+            <tbody id="log-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="total">共 0 条数据</span>
+          <span>每页
+            <select style="width:72px"><option>10</option><option>20</option><option>50</option><option>100</option></select>
+          </span>
+          <span class="pager">
+            <button disabled>‹</button><button class="on">1</button><button disabled>2</button><button disabled>3</button><button disabled>›</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-mask" id="detail-modal">
+  <div class="modal" style="max-width:1000px">
+    <div class="modal-head"><h3 id="d-title">详情</h3><button class="btn" data-close="detail-modal">×</button></div>
+    <div class="modal-body">
+      <div style="margin-bottom:10px;font-size:13px;color:#41605b">事件字段（来自事件明细，敏感字段默认展示脱敏值）</div>
+      <table class="d-table">
+        <thead><tr><th style="width:180px">字段名</th><th style="width:160px">标签</th><th>值</th><th style="width:110px">操作</th></tr></thead>
+        <tbody id="d-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" data-close="detail-modal">关闭</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 请求明细 · 静态演示数据 ============ */
+(function () {
+  const ROWS = [
+    { reqId:'4cf082ba-a73d-11f1-866d-0ffb4f7ff8de', nodeNo:'TRANSACTION_PHONE_SDK', node:'交易-手机SDK', account:'138****001', rawAcc:'13800000001', game:'5290',
+      ip:'171.109.*.*', rawIp:'171.109.216.30', loc:'中国 广西壮族自治区 南宁市 中国电信', score:86, time:'2026-09-03 10:15:22',
+      ext:[['amount','交易金额','12999.00',false],['account_id','账号','138****001',true],['device_id','设备ID','123****131',true],['openid','手游账号id','123131',false],['product_name','产品名称','1288元礼包',false],['order_id','订单号','177****301',true],['channel_id','渠道 ID','1',false],['ip','IP 地址','171.109.*.*',true]] },
+    { reqId:'b9a2f0d1-3e55-4f21-ba0c-8d9f1e2a77c1', nodeNo:'TRANSACTION_PHONE_SDK', node:'交易-手机SDK', account:'188****672', rawAcc:'18800000672', game:'5290',
+      ip:'120.229.*.*', rawIp:'120.229.85.44', loc:'中国 广东省 广州市', score:62, time:'2026-09-03 10:12:47',
+      ext:[['amount','交易金额','648.00',false],['account_id','账号','188****672',true],['openid','手游账号id','556677',false],['product_name','产品名称','648元礼包',false],['order_id','订单号','166****890',true],['channel_id','渠道 ID','2',false],['ip','IP 地址','120.229.*.*',true]] },
+    { reqId:'7c1e8a90-1d2b-4c3f-9e4d-5a6f7b8c9d0e', nodeNo:'LOGIN_WEB', node:'登录-WEB', account:'139****508', rawAcc:'13900000508', game:'5290',
+      ip:'223.104.*.*', rawIp:'223.104.66.12', loc:'中国 广东省 深圳市', score:91, time:'2026-09-03 09:58:03',
+      ext:[['account_id','账号','139****508',true],['device_id','设备ID','9ab1****c88d',true],['openid','手游账号id','908732',false],['event_time','事件时间','1788401708000',false],['ip','IP 地址','223.104.*.*',true]] },
+    { reqId:'e5d4c3b2-a109-8765-4321-0fedcba98765', nodeNo:'TRANSACTION_PHONE_SDK', node:'交易-手机SDK', account:'152****330', rawAcc:'15200000330', game:'5290',
+      ip:'110.86.*.*', rawIp:'110.86.21.77', loc:'中国 福建省 厦门市', score:12, time:'2026-09-03 09:41:18',
+      ext:[['amount','交易金额','30.00',false],['account_id','账号','152****330',true],['product_name','产品名称','30元礼包',false],['order_id','订单号','155****012',true],['channel_id','渠道 ID','1',false],['ip','IP 地址','110.86.*.*',true]] },
+    { reqId:'a1b2c3d4-5e6f-7890-abcd-ef1234567890', nodeNo:'LOGIN_WEB', node:'登录-WEB', account:'186****245', rawAcc:'18600000245', game:'5290',
+      ip:'61.140.*.*', rawIp:'61.140.190.28', loc:'中国 广东省 广州市', score:58, time:'2026-09-03 09:20:55',
+      ext:[['account_id','账号','186****245',true],['device_id','设备ID','77ab****12cd',true],['openid','手游账号id','552019',false],['event_time','事件时间','1788401708000',false],['ip','IP 地址','61.140.*.*',true]] },
+    { reqId:'f61ee1a0-33b2-44a1-9d2e-c2a1b3d4e5f6', nodeNo:'LOGIN_API', node:'登录-开放接口', account:'158****901', rawAcc:'15800000901', game:'5290',
+      ip:'120.244.*.*', rawIp:'120.244.100.9', loc:'中国 北京市', score:0, time:'2026-09-03 09:02:11',
+      ext:[['account_id','账号','158****901',true],['openid','手游账号id','300156',false],['api_key','接口 Key','ak_live_****a3',true],['ip','IP 地址','120.244.*.*',true]] },
+    { reqId:'a99f2b3c-4d5e-4f6a-9b0c-1d2e3f4a5b6c', nodeNo:'PAY_ANDROID_SDK', node:'支付-安卓SDK', account:'139****770', rawAcc:'13900000770', game:'5290',
+      ip:'117.136.*.*', rawIp:'117.136.52.61', loc:'中国 河南省 郑州市', score:88, time:'2026-09-03 08:47:59',
+      ext:[['amount','交易金额','3280.00',false],['account_id','账号','139****770',true],['device_id','设备ID','e3d9****07aa',true],['openid','手游账号id','882345',false],['pay_order_id','支付单号','PO8831****229',true],['channel_id','渠道 ID','6',false],['ip','IP 地址','117.136.*.*',true]] },
+    { reqId:'8c1d9e0f-1a2b-3c4d-8e9f-0a1b2c3d4e5f', nodeNo:'TRANSACTION_PHONE_SDK', node:'交易-手机SDK', account:'188****456', rawAcc:'18800000456', game:'5290',
+      ip:'14.215.*.*', rawIp:'14.215.177.38', loc:'中国 广东省 广州市 电信', score:66, time:'2026-09-03 08:20:33',
+      ext:[['amount','交易金额','1980.00',false],['account_id','账号','188****456',true],['openid','手游账号id','667812',false],['product_name','产品名称','1980元礼包',false],['order_id','订单号','154****443',true],['channel_id','渠道 ID','1',false],['ip','IP 地址','14.215.*.*',true]] },
+  ];
+
+  const COL_NODE = document.getElementById('f-node');
+  DEMO.nodes.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n.nodeNo; o.textContent = n.nodeName;
+    COL_NODE.appendChild(o);
+  });
+  // 默认查询时间：近 7 天
+  document.getElementById('f-start').value = '2026-08-27T00:00';
+  document.getElementById('f-end').value = '2026-09-03T23:59';
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function maskedTd(col, val, raw, field) {
+    return `<td class="${col}">
+      <span class="masked-row ${val===raw?'':''}" data-field="${field}">
+        <span class="mask-val">${esc(val)}</span>
+        <span class="plain">${esc(raw)}</span>
+        <button class="btn-link rev-btn" data-mask="${esc(val)}" data-raw="${esc(raw)}">查看原文</button>
+      </span>
+    </td>`;
+  }
+  function extRowHtml(idx) {
+    const r = ROWS[idx];
+    return r.ext.map(e => {
+      const [f, label, v, mask] = e;
+      let op = '-';
+      if (mask) {
+        const raw = rawOf(r, f);
+        op = `<button class="btn-link rev-btn" data-mask="${esc(v)}" data-raw="${esc(raw)}">查看原文</button>`;
+      }
+      return `<tr>
+        <td class="mono">${esc(f)}</td><td>${esc(label)}</td>
+        <td><span class="mask-val">${esc(v)}</span><span class="plain">${esc(rawOf(r, f))}</span></td>
+        <td>${op}</td></tr>`;
+    }).join('');
+  }
+  function rawOf(r, field) {
+    if (field === 'account_id') return r.rawAcc;
+    if (field === 'ip') return r.rawIp;
+    if (field === 'device_id') return 'a8f9' + String(Math.abs(r.reqId.length * 991) % 1000).padStart(3, '0') + '****c88d';
+    if (field === 'order_id') return '1772' + String(Math.abs(r.reqId.charCodeAt(1) * 8811) % 100000000).padStart(8, '0');
+    return v;
+  }
+
+  function rowHtml(r, idx) {
+    const score = r.score > 0 ? `<span class="score-hit">${r.score}</span>` : '<span class="muted">-</span>';
+    return `<tr>
+      <td class="fix c1 mono">${esc(r.reqId)}</td>
+      <td class="fix c2">${esc(r.node)}</td>
+      ${maskedTd('fix c3', r.account, r.rawAcc, 'account_id')}
+      <td class="num">${esc(r.game)}</td>
+      ${maskedTd('', r.ip, r.rawIp, 'ip')}
+      <td>${esc(r.loc)}</td>
+      <td class="num">${score}</td>
+      <td>${esc(r.time)}</td>
+      <td>${esc(r.time)}</td>
+      <td class="fix cR td-actions">
+        <button class="btn-link" onclick="document.getElementById('detail-modal').classList.add('open'); fillDetail(${idx})">详情</button>
+        <a class="btn-link" href="data-analysis.html?reqId=${encodeURIComponent(r.reqId)}" target="_blank">指标数据</a>
+      </td>
+    </tr>`;
+  }
+
+  function render(rows) {
+    const tb = document.getElementById('log-body');
+    tb.innerHTML = rows.map((r, i) => rowHtml(r, rows.indexOf(r))).join('');
+    document.getElementById('total').textContent = '共 ' + rows.length + ' 条数据';
+  }
+
+  /* 查看原文 / 重新脱敏 */
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.rev-btn');
+    if (!btn) return;
+    const container = btn.closest('.masked-row') || btn.closest('td');
+    if (!container) return;
+    const revealed = container.classList.toggle('revealed');
+    btn.textContent = revealed ? '重新脱敏' : '查看原文';
+  });
+
+  window.fillDetail = function (idx) {
+    const r = ROWS[idx];
+    document.getElementById('d-title').textContent = '详情 - 请求ID: ' + r.reqId;
+    document.getElementById('d-body').innerHTML = extRowHtml(idx);
+  };
+
+  /* 查询（前端过滤模拟） */
+  document.getElementById('q-btn').addEventListener('click', function () {
+    const node = COL_NODE.value;
+    const acc = document.getElementById('f-account').value.trim();
+    const ip = document.getElementById('f-ip').value.trim();
+    const min = parseFloat(document.getElementById('f-min').value);
+    const max = parseFloat(document.getElementById('f-max').value);
+    const s = document.getElementById('f-start').value.replace('T', ' ');
+    const e = document.getElementById('f-end').value.replace('T', ' ');
+    const rows = ROWS.filter(r =>
+      (!node || r.nodeNo === node) &&
+      (!acc || r.account.indexOf(acc) >= 0 || r.rawAcc.indexOf(acc) >= 0) &&
+      (!ip || r.ip.indexOf(ip) >= 0 || r.rawIp.indexOf(ip) >= 0) &&
+      (isNaN(min) || r.score >= min) && (isNaN(max) || r.score <= max) &&
+      (!s || r.time >= s) && (!e || r.time <= e)
+    );
+    render(rows);
+  });
+
+  render(ROWS);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>衍生特征 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .tag-blue { color:#0958d9; background:#e6f4ff; }
+  .type-dot { width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:6px; }
+  .mono2 { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .row-note { font-size:12px; color:#9fb5b1; }
+  .feat-code { font-size:12px; background:#f0f7f5; border:1px solid #e2ecea; border-radius:5px; padding:2px 6px; color:#0f766e; }
+  .warn-red { background:#fdf3f3; border:1px solid #f6d2d2; color:#c0392b; font-size:12px; border-radius:6px; padding:8px 10px; margin-bottom:12px; line-height:1.6; }
+</style>
+</head>
+<body data-page="custom-fields">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+
+      <div class="filter-card" style="padding:10px 16px">
+        <div class="filter-row" style="gap:12px">
+          <div class="filter-item" style="flex-direction:row;align-items:center;gap:0"><span class="lab">所属节点</span>
+            <select id="f-node" style="width:200px"><option value="">全部</option></select></div>
+          <input id="f-kw" placeholder="搜索特征名称 / 代码 / 备注" style="width:280px">
+          <button class="btn btn-primary" id="q-btn" style="align-self:center">查询</button>
+          <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn" id="cf-history">历史版本</button>
+            <button class="btn btn-primary" data-open="cf-modal">＋ 新增特征</button>
+          </span>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-scroll">
+          <table class="grid" style="min-width:1360px">
+            <thead><tr>
+              <th style="width:170px">所属节点</th><th style="width:250px">特征名称</th><th style="width:110px">类型</th>
+              <th style="width:90px">版本</th><th style="width:90px">特征大小</th><th style="width:260px">取数逻辑</th>
+              <th>备注</th><th style="width:90px">状态</th><th style="width:160px">更新时间</th><th style="width:170px">操作</th>
+            </tr></thead>
+            <tbody id="cf-body"></tbody>
+          </table>
+        </div>
+        <div class="table-foot">
+          <span id="cf-total">共 0 条</span>
+          <span class="pager"><button disabled>‹</button><button class="on">1</button><button disabled>›</button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/编辑特征弹窗 -->
+<div class="modal-mask" id="cf-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-head"><h3 id="cfm-title">新增特征</h3><button class="btn" data-close="cf-modal">×</button></div>
+    <div class="modal-body">
+      <div class="warn-red">注意：取属性值请使用 <b>data?.properties</b>，不要直接写 data.properties，属性为空或缺失时容易造成执行报错，影响整条规则评估。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><div class="lab" style="color:#263a35">所属节点 <b style="color:#d03050">*</b></div>
+          <select id="m-node"></select></div>
+        <div><div class="lab" style="color:#263a35">特征名称（中文） <b style="color:#d03050">*</b></div>
+          <input id="m-cn" placeholder="如 近1小时支付金额"></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">特征代码 <b style="color:#d03050">*</b></div>
+          <input id="m-code" placeholder="如 dev_features.flink_1h_pay_amount"></div>
+        <div><div class="lab" style="color:#263a35">类型</div>
+          <select id="m-type"><option>数值特征</option><option>枚举特征</option><option>布尔特征</option><option>字符串特征</option></select></div>
+        <div><div class="lab" style="color:#263a35">版本</div>
+          <input id="m-ver" placeholder="如 v1.0.0"></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">取数逻辑（表达式）</div>
+          <textarea id="m-sql" rows="4" style="width:100%;resize:none;height:96px" placeholder="示例：&#10;const amt = data?.properties?.pay_amount ?? 0&#10;return amt"></textarea></div>
+        <div style="grid-column:1/3"><div class="lab" style="color:#263a35">备注</div>
+          <input id="m-remark"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="cf-modal">取消</button><button class="btn btn-primary" id="cfm-save">保存</button></div>
+  </div>
+</div>
+
+<!-- 版本历史弹窗 -->
+<div class="modal-mask" id="ver-modal">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-head"><h3>特征版本历史</h3><button class="btn" data-close="ver-modal">×</button></div>
+    <div class="modal-body">
+      <table class="grid">
+        <thead><tr><th style="width:110px">版本</th><th style="width:160px">发布人</th><th style="width:160px">发布时间</th><th>说明</th><th style="width:120px">操作</th></tr></thead>
+        <tbody id="ver-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" data-close="ver-modal">关闭</button></div>
+  </div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 衍生特征 · 静态演示数据 ============ */
+(function () {
+  const D = [
+    { node:'TRANSACTION_PHONE_SDK', cn:'近1小时支付金额', code:'dev_features.flink_1h_pay_amount', type:'数值特征', ver:'v1.0.0', size:'2.1 KB',
+      sql:'return data?.properties?.pay_amount_1h_by_uid ?? 0', remark:'取自Flink指标:1小时支付金额', st:'启用', time:'2026-09-02 18:20:01', vers: 3 },
+    { node:'TRANSACTION_PHONE_SDK', cn:'近24小时购买次数', code:'dev_features.flink_24h_buy_cnt', type:'数值特征', ver:'v1.2.0', size:'1.6 KB',
+      sql:'return data?.properties?.count_buyerid_24h_uid ?? 0', remark:'', st:'启用', time:'2026-09-03 09:12:40', vers: 5 },
+    { node:'LOGIN_WEB', cn:'是否设备黑名单', code:'dev_features.dev_black_flag', type:'布尔特征', ver:'v1.0.0', size:'0.8 KB',
+      sql:'return !!(data?.properties?.device_black_hit > 0)', remark:'', st:'启用', time:'2026-08-28 09:02:37', vers: 2 },
+    { node:'LOGIN_WEB', cn:'3小时异常IP登录次数', code:'dev_features.login_abnormal_ip_3h', type:'数值特征', ver:'v1.1.0', size:'1.2 KB',
+      sql:'return data?.properties?.login_abnormal_ip_times_3h ?? 0', remark:'', st:'启用', time:'2026-08-30 15:44:20', vers: 4 },
+    { node:'TRANSACTION_PHONE_SDK', cn:'交易设备历史黑名单次数', code:'dev_features.pay_dev_black_cnt', type:'数值特征', ver:'v0.9.0', size:'1.4 KB',
+      sql:'return data?.properties?.pay_dev_black_flag ?? 0', remark:'灰度中，暂不下发', st:'停用', time:'2026-08-31 11:15:06', vers: 6 },
+    { node:'LOGIN_API', cn:'1分钟接口调用频次', code:'dev_features.api_1m_cnt', type:'数值特征', ver:'v1.0.0', size:'0.9 KB',
+      sql:'return data?.properties?.api_cnt_1m_by_apikey ?? 0', remark:'', st:'启用', time:'2026-09-03 15:30:00', vers: 1 },
+    { node:'TRANSACTION_PHONE_SDK', cn:'5秒滚动支付金额(特征版)', code:'dev_features.flink_5s_amt_uid', type:'数值特征', ver:'v1.0.0', size:'1.1 KB',
+      sql:'return data?.properties?.flink_5s_amt_roll_uid ?? 0', remark:'', st:'停用', time:'2026-09-01 10:00:00', vers: 2 },
+  ];
+  const TYPE_COLOR = { '数值特征':'#0d9488', '枚举特征':'#2563eb', '布尔特征':'#7c3aed', '字符串特征':'#0891b2' };
+  const nodeSel = document.getElementById('f-node');
+  const nodeM = document.getElementById('m-node');
+  DEMO.nodes.forEach(n => { [nodeSel, nodeM].forEach(s => { const o = document.createElement('option'); o.value = n.nodeNo; o.textContent = n.nodeName; s.appendChild(o); }); });
+  const ND = (n) => n ? ((DEMO.nodes.find(x => x.nodeNo === n) || {}).nodeName || n) : '全部节点';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+  function rowHtml(f, i) {
+    return `<tr data-i="${i}">
+      <td>${ND(f.node)}</td>
+      <td><div style="font-weight:600;color:#17423c">${esc(f.cn)}</div><div class="row-note mono2">${esc(f.code)}</div></td>
+      <td><span class="type-dot" style="background:${TYPE_COLOR[f.type]}"></span>${f.type}</td>
+      <td><span class="feat-code">${f.ver}</span></td>
+      <td>${f.size}</td>
+      <td class="mono2" style="font-size:12px;color:#41605b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px" title="${esc(f.sql)}">${esc(f.sql)}</td>
+      <td style="color:#41605b">${esc(f.remark || '-')}</td>
+      <td><span class="tag ${f.st === '启用' ? 'tag-green' : 'tag-gray2'}">${f.st}</span></td>
+      <td>${esc(f.time)}</td>
+      <td class="td-actions"><button class="btn-link" data-e="${i}">编辑</button>
+        <button class="btn-link" data-v="${i}">版本历史</button><button class="btn-link danger" data-d="${i}">删除</button></td>
+    </tr>`;
+  }
+  function render(list) {
+    document.getElementById('cf-body').innerHTML = list.map(f => rowHtml(f, D.indexOf(f))).join('');
+    document.getElementById('cf-total').textContent = '共 ' + list.length + ' 条';
+  }
+  function fullRender() { render(D); }
+
+  function applyFilter() {
+    const kw = document.getElementById('f-kw').value.trim().toLowerCase();
+    const nd = nodeSel.value;
+    render(D.filter(f => (!nd || !f.node || f.node === nd) &&
+      (!kw || f.cn.toLowerCase().includes(kw) || f.code.toLowerCase().includes(kw) || (f.remark || '').includes(kw))));
+  }
+  document.getElementById('q-btn').onclick = applyFilter;
+  document.getElementById('f-kw').addEventListener('input', applyFilter);
+  nodeSel.onchange = applyFilter;
+
+  let _edit = -1;
+  function openForm(idx) {
+    _edit = idx;
+    document.getElementById('cfm-title').textContent = idx === -1 ? '新增特征' : '编辑特征';
+    const f = idx === -1 ? {} : D[idx];
+    document.getElementById('m-node').value = f.node || '';
+    document.getElementById('m-cn').value = f.cn || '';
+    document.getElementById('m-code').value = f.code || '';
+    document.getElementById('m-type').value = f.type || '数值特征';
+    document.getElementById('m-ver').value = f.ver || '';
+    document.getElementById('m-sql').value = f.sql || '';
+    document.getElementById('m-remark').value = f.remark || '';
+    openModal('cf-modal');
+  }
+  document.querySelector('[data-open="cf-modal"]').addEventListener('click', () => openForm(-1));
+  document.getElementById('cfm-save').onclick = () => {
+    const cn = document.getElementById('m-cn').value.trim();
+    const code = document.getElementById('m-code').value.trim();
+    if (!cn || !code) { alert('特征名称与代码不能为空'); return; }
+    const v = { node: document.getElementById('m-node').value, cn, code, type: document.getElementById('m-type').value,
+      ver: document.getElementById('m-ver').value.trim() || 'v1.0.0', size: '1.0 KB',
+      sql: document.getElementById('m-sql').value.trim(), remark: document.getElementById('m-remark').value.trim(),
+      st: '启用', time: '2026-09-03 16:00:00', vers: 1 };
+    if (_edit === -1) D.push(v); else D[_edit] = v;
+    closeModal('cf-modal'); fullRender();
+  };
+
+  /* 版本历史 */
+  const VERS = { v1: { p:'管理员', t:'2026-09-02 18:20:01', note:'首次发布', op:'当前版本' },
+    v2: { p:'管理员', t:'2026-09-03 09:12:40', note:'补 null 兜底，改用 data?.properties', op:'恢复此版本' },
+    v3: { p:'风控同学A', t:'2026-09-03 11:30:55', note:'窗口改为 1h', op:'恢复此版本' } };
+  document.getElementById('cf-history').onclick = () => {
+    const html = ['v3.0.0','v1.2.0','v1.0.0'].map((v, i) =>
+      `<tr><td><span class="feat-code">${v}</span></td><td>${VERS['v' + (i + 1)].p}</td><td>${VERS['v' + (i + 1)].t}</td>
+       <td>${VERS['v' + (i + 1)].note}</td><td>${i === 0 ? '<span class="tag tag-teal">当前</span>' : `<button class="btn-link" data-restore>${VERS['v' + (i + 1)].op}</button>`}</td></tr>`).join('');
+    document.getElementById('ver-body').innerHTML = html;
+    openModal('ver-modal');
+  };
+
+  document.addEventListener('click', e => {
+    const ed = e.target.closest('[data-e]'); if (ed) { openForm(+ed.dataset.e); return; }
+    const vh = e.target.closest('[data-v]');
+    if (vh) { document.getElementById('ver-body').innerHTML = '<tr><td colspan="5">该特征暂无历史版本</td></tr>'; openModal('ver-modal'); return; }
+    const del = e.target.closest('[data-d]');
+    if (del) { const f = D[+del.dataset.d]; if (confirm(`确认删除特征「${f.cn}」？`)) { D.splice(+del.dataset.d, 1); fullRender(); } }
+  });
+
+  fullRender();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>风控节点 · 风控系统</title>
+<link rel="stylesheet" href="assets/styles.css">
+<style>
+  .tag-green { color:#0f8a3d; background:#e7f8ee; }
+  .tag-gray2 { color:#5b7470; background:#eef2f1; }
+  .node-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(380px,1fr)); gap:12px; }
+  .node-card { background:#fff; border:1px solid #e2ecea; border-radius:12px; padding:14px 16px;
+    box-shadow:0 1px 2px rgba(15,94,89,.04),0 2px 10px rgba(15,94,89,.05); }
+  .node-card .top { display:flex; align-items:center; gap:10px; }
+  .node-card .name { font-size:15px; font-weight:700; color:#133832; }
+  .node-card .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:#9fb5b1; }
+  .node-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0; }
+  .node-stats .it { background:#f4faf8; border-radius:8px; padding:8px 10px; }
+  .node-stats .v { font-size:18px; font-weight:700; color:#0f766e; font-variant-numeric:tabular-nums; }
+  .node-stats .k { font-size:11px; color:#6a8580; }
+  .chip-tag { display:inline-flex; align-items:center; background:#f0f7f5; color:#0f766e; font-size:12px;
+    border:1px solid #dcebe7; border-radius:99px; padding:1px 9px; margin:2px 4px 2px 0; }
+  .scene-box { margin-top:4px; }
+</style>
+</head>
+<body data-page="risk-nodes">
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="content">
+      <div class="page-title" id="page-title"></div>
+      <div class="node-grid" id="node-grid"></div>
+    </div>
+  </div>
+</div>
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+/* ============ 风控节点 · 静态演示数据 ============ */
+(function () {
+  const NODES = [
+    { nodeName:'交易-手机SDK', nodeNo:'TRANSACTION_PHONE_SDK', type:'同步调用', st:'启用', reqs:128400, hits:1320, ms:38,
+      scenes:['手机端交易风控','交易风险监控'], cluster:'flink-01', desc:'手机端 SDK 支付交易请求接入' },
+    { nodeName:'登录-WEB', nodeNo:'LOGIN_WEB', type:'同步调用', st:'启用', reqs:96300, hits:518, ms:22,
+      scenes:['登录风控'], cluster:'flink-01', desc:'Web 端登录请求接入' },
+    { nodeName:'登录-开放接口', nodeNo:'LOGIN_API', type:'同步调用', st:'启用', reqs:45210, hits:96, ms:15,
+      scenes:['登录风控','开放接口限流'], cluster:'flink-02', desc:'B 端开放接口登录鉴权' },
+    { nodeName:'支付-安卓SDK', nodeNo:'PAY_ANDROID_SDK', type:'同步调用', st:'启用', reqs:84120, hits:760, ms:41,
+      scenes:['支付风控'], cluster:'flink-02', desc:'安卓 SDK 支付请求接入' },
+    { nodeName:'注册-WEB', nodeNo:'REGISTER_WEB', type:'同步调用', st:'停用', reqs:0, hits:0, ms:0,
+      scenes:[], cluster:'flink-01', desc:'注册接入（灰度中未启用）' },
+    { nodeName:'旁路-交易明细', nodeNo:'BYPAAS_TRADE', type:'旁路', st:'启用', reqs:20400, hits:0, ms:0,
+      scenes:['手机端交易风控'], cluster:'flink-03', desc:'旁路观测，仅记录不拦截' },
+  ];
+  const SCN = (list) => list.length ? list.map(s => `<span class="chip-tag">${s}</span>`).join('') : '<span class="muted">未绑定场景</span>';
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  document.getElementById('node-grid').innerHTML = NODES.map(n => `
+    <div class="node-card">
+      <div class="top">
+        <div><div class="name">${esc(n.nodeName)}</div><div class="code">${esc(n.nodeNo)}</div></div>
+        <span style="margin-left:auto"></span>
+        <span class="tag ${n.st === '启用' ? 'tag-green' : 'tag-gray2'}">${n.st}</span>
+        <span class="tag tag-teal">${n.type}</span>
+      </div>
+      <div class="node-stats">
+        <div class="it"><div class="v">${(n.reqs/1000).toFixed(1)}k</div><div class="k">今日请求</div></div>
+        <div class="it"><div class="v" style="color:${n.hits ? '#d03050' : '#9fb5b1'}">${n.hits.toLocaleString()}</div><div class="k">今日命中</div></div>
+        <div class="it"><div class="v">${n.ms}ms</div><div class="k">平均耗时</div></div>
+      </div>
+      <div style="font-size:12px;color:#6a8580;margin-bottom:4px">关联场景：${SCN(n.scenes)}</div>
+      <div class="table-foot" style="padding:8px 0 0;border-top:1px solid #f0f5f4">
+        <span style="font-size:12px;color:#6a8580">集群 ${n.cluster} · ${n.desc}</span>
+        <span class="pager"><a class="btn" style="padding:3px 12px" href="scenes.html?node=${n.nodeNo}">场景管理</a>
+        <a class="btn" style="padding:3px 12px" href="rules.html?node=${n.nodeNo}">规则管理</a></span>
+      </div>
+    </div>`).join('');
+})();
+</script>
+</body>
+</html>
